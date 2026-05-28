@@ -26,15 +26,16 @@ This guide covers the complete deployment setup for the AIoT Asset Platform mono
 
 ## Environments
 
-| Environment | Branch | Frontend | Backend | Database |
-|-------------|--------|----------|---------|----------|
-| **Local** | any | localhost:3000 | localhost:3001 | Local PostgreSQL |
-| **Staging** | dev | staging.vercel.app | staging-api.aws | Supabase Staging |
-| **Production** | main | app.dx-aiot.com | api.dx-aiot.com | Supabase Production |
+| Environment    | Branch | Frontend           | Backend         | Database            |
+| -------------- | ------ | ------------------ | --------------- | ------------------- |
+| **Local**      | any    | localhost:3000     | localhost:3001  | Local PostgreSQL    |
+| **Staging**    | dev    | staging.vercel.app | staging-api.aws | Supabase Staging    |
+| **Production** | main   | app.dx-aiot.com    | api.dx-aiot.com | Supabase Production |
 
 ## Prerequisites
 
 ### Required Tools
+
 - Node.js 18+ (check `.nvmrc`)
 - npm 9+
 - Git
@@ -43,6 +44,7 @@ This guide covers the complete deployment setup for the AIoT Asset Platform mono
 - AWS account
 
 ### Required Access
+
 - GitHub repository admin or write access
 - Vercel team/project permissions
 - AWS IAM user with EB/S3 permissions
@@ -70,6 +72,7 @@ VERCEL_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 Add to GitHub:
+
 - `VERCEL_TOKEN`
 - `VERCEL_ORG_ID`
 - `VERCEL_PROJECT_ID`
@@ -94,6 +97,7 @@ aws iam create-access-key --user-name github-deployer
 ```
 
 Add to GitHub:
+
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `AWS_REGION` (e.g., `us-east-1`)
@@ -104,6 +108,7 @@ Add to GitHub:
 ### 2. Vercel Project Setup
 
 #### Option A: CLI Setup
+
 ```bash
 cd apps/web
 
@@ -122,6 +127,7 @@ vercel --prod
 ```
 
 #### Option B: Dashboard Setup
+
 1. Go to [vercel.com/new](https://vercel.com/new)
 2. Import GitHub repository
 3. Set root directory: `apps/web`
@@ -210,6 +216,7 @@ aws elasticbeanstalk update-environment \
 3. Add to AWS EB environment variables (see above)
 
 4. Run migrations:
+
 ```bash
 # Staging
 DATABASE_URL="postgresql://staging..." npm run migrate
@@ -223,9 +230,11 @@ DATABASE_URL="postgresql://production..." npm run migrate
 ### PR Checks (`pr-checks.yml`)
 
 **Triggers:**
+
 - Any PR to `main` or `dev`
 
 **What it does:**
+
 1. ✅ Format check with Prettier
 2. ✅ Lint with ESLint
 3. ✅ Type check with TypeScript
@@ -233,17 +242,20 @@ DATABASE_URL="postgresql://production..." npm run migrate
 5. ✅ Build all packages
 
 **When it blocks merge:**
+
 - Any check fails
 - Build fails
 
 ### Frontend Deployment (`deploy-frontend.yml`)
 
 **Triggers:**
+
 - Push to `dev` → deploys to Vercel preview (staging)
 - Push to `main` → deploys to Vercel production
 - Manual trigger via Actions tab
 
 **What it does:**
+
 1. Installs dependencies
 2. Pulls Vercel environment config
 3. Builds Next.js app
@@ -255,11 +267,13 @@ DATABASE_URL="postgresql://production..." npm run migrate
 ### Backend Deployment (`deploy-backend.yml`)
 
 **Triggers:**
+
 - Push to `dev` → deploys to AWS staging
 - Push to `main` → deploys to AWS production
 - Manual trigger via Actions tab
 
 **What it does:**
+
 1. Builds shared packages
 2. Builds NestJS API
 3. Packages into zip
@@ -348,6 +362,7 @@ git push origin dev
 ### Frontend (Vercel)
 
 **Health endpoints:**
+
 ```bash
 # Staging
 curl https://staging.vercel.app/health
@@ -357,6 +372,7 @@ curl https://app.dx-aiot.com/health
 ```
 
 **Monitoring:**
+
 - Vercel Analytics: vercel.com/dashboard
 - Vercel Logs: Real-time in dashboard
 - GitHub Actions: Check workflow status
@@ -364,6 +380,7 @@ curl https://app.dx-aiot.com/health
 ### Backend (AWS)
 
 **Health endpoints:**
+
 ```bash
 # Staging
 curl https://staging-api.example.com/health
@@ -373,6 +390,7 @@ curl https://api.example.com/health
 ```
 
 **Monitoring:**
+
 - AWS EB Console: Health status dashboard
 - CloudWatch Logs: Real-time logs
 - CloudWatch Metrics: CPU, memory, requests
@@ -404,6 +422,7 @@ export class HealthController {
 ### Frontend Rollback (Vercel)
 
 #### Option A: Dashboard
+
 1. Go to [vercel.com/dashboard](https://vercel.com/dashboard)
 2. Select project
 3. Go to "Deployments"
@@ -411,6 +430,7 @@ export class HealthController {
 5. Click "⋯" → "Promote to Production"
 
 #### Option B: CLI
+
 ```bash
 cd apps/web
 
@@ -424,6 +444,7 @@ vercel rollback <deployment-url> --prod
 ### Backend Rollback (AWS)
 
 #### Option A: Console
+
 1. Go to Elastic Beanstalk console
 2. Select application
 3. Select environment
@@ -432,6 +453,7 @@ vercel rollback <deployment-url> --prod
 6. Click "Deploy"
 
 #### Option B: CLI
+
 ```bash
 # List versions
 aws elasticbeanstalk describe-application-versions \
@@ -453,12 +475,14 @@ aws elasticbeanstalk wait environment-updated \
 ## Performance Benchmarks
 
 ✅ **Acceptance Criteria:**
+
 - Push to dev → staging deploy: **< 5 minutes**
 - PR checks: **< 5 minutes**
 - Health check response: **< 1 second**
 - Zero downtime deployments: **✓**
 
 **Actual Performance:**
+
 - PR checks: ~3-4 minutes
 - Frontend deploy: ~2-4 minutes
 - Backend deploy: ~5-8 minutes
@@ -469,12 +493,14 @@ aws elasticbeanstalk wait environment-updated \
 ### Issue: GitHub Actions failing with "npm ci" error
 
 **Symptoms:**
+
 ```
 npm ERR! code ENOLOCK
 npm ERR! npm ci can only install packages when your package.json and package-lock.json
 ```
 
 **Solution:**
+
 ```bash
 # Delete and regenerate lock file
 rm package-lock.json
@@ -487,11 +513,13 @@ git push
 ### Issue: Vercel deployment fails with "Build exceeded memory limit"
 
 **Symptoms:**
+
 ```
 Error: Command "npm run build" exited with 137
 ```
 
 **Solution:**
+
 ```bash
 # Add to vercel.json
 {
@@ -506,10 +534,12 @@ Error: Command "npm run build" exited with 137
 ### Issue: AWS EB deployment hangs
 
 **Symptoms:**
+
 - Deployment shows "In Progress" for >15 minutes
 - Health check never passes
 
 **Solution:**
+
 ```bash
 # Check logs
 aws elasticbeanstalk describe-environment-health \
@@ -528,11 +558,13 @@ eb logs --all
 ### Issue: "Invalid credentials" error in GitHub Actions
 
 **Symptoms:**
+
 ```
 Error: The security token included in the request is invalid
 ```
 
 **Solution:**
+
 1. Verify secrets in GitHub Settings
 2. Check IAM user has correct policies
 3. Regenerate access keys if needed
@@ -541,11 +573,13 @@ Error: The security token included in the request is invalid
 ### Issue: Health check failing after deployment
 
 **Symptoms:**
+
 ```
 ❌ Health check failed after 5 attempts
 ```
 
 **Solution:**
+
 ```bash
 # 1. Check if service is running
 curl -v https://staging-api.example.com/health
@@ -564,6 +598,7 @@ aws elasticbeanstalk describe-configuration-settings \
 ## Security Best Practices
 
 ### Secrets Management
+
 - ✅ Never commit `.env` files
 - ✅ Use GitHub Secrets for all credentials
 - ✅ Rotate AWS keys every 90 days
@@ -571,12 +606,14 @@ aws elasticbeanstalk describe-configuration-settings \
 - ✅ Enable MFA for AWS root account
 
 ### Access Control
+
 - ✅ Use IAM roles with least privilege
 - ✅ Enable branch protection on `main` and `dev`
 - ✅ Require PR reviews before merge
 - ✅ Enable CODEOWNERS for critical paths
 
 ### Network Security
+
 - ✅ Use HTTPS only (enforce in Vercel/AWS)
 - ✅ Configure CORS properly
 - ✅ Set security headers (see `vercel.json`)
@@ -585,6 +622,7 @@ aws elasticbeanstalk describe-configuration-settings \
 ## Cost Estimates
 
 ### Vercel
+
 - **Hobby Plan:** $0/month (1 user, limited builds)
 - **Pro Plan:** $20/month per user (recommended)
 - **Enterprise:** Custom pricing
@@ -592,6 +630,7 @@ aws elasticbeanstalk describe-configuration-settings \
 **Estimate for staging + production:** ~$40/month
 
 ### AWS
+
 - **EB Single Instance (staging):** ~$15/month
   - t3.micro: $7/month
   - EBS: $3/month
@@ -606,6 +645,7 @@ aws elasticbeanstalk describe-configuration-settings \
 **Total AWS estimate:** ~$95/month
 
 ### Supabase
+
 - **Free tier:** $0 (500MB database, 2GB bandwidth)
 - **Pro:** $25/month per project
 - **Estimate for staging + production:** $50/month
@@ -615,18 +655,21 @@ aws elasticbeanstalk describe-configuration-settings \
 ## Support & Resources
 
 ### Documentation
+
 - GitHub Actions: https://docs.github.com/actions
 - Vercel: https://vercel.com/docs
 - AWS EB: https://docs.aws.amazon.com/elasticbeanstalk
 - Turbo: https://turbo.build/repo/docs
 
 ### Team Contacts
+
 - **QA/DevOps:** [QADevOps](/DXS/agents/qadevops)
 - **Backend:** [BackendDev](/DXS/agents/backenddev)
 - **Frontend:** [FrontendDev](/DXS/agents/frontenddev)
 - **CTO:** [CTO](/DXS/agents/cto)
 
 ### Issue Tracking
+
 Create issues at: [DXS Project Board](/DXS/issues)
 
 Prefix: `DXS-` (e.g., `DXS-123`)

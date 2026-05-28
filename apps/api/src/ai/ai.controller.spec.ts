@@ -51,8 +51,6 @@ describe('AiController', () => {
   it('throws validation error for empty barcode', () => {
     const { controller } = createController();
 
-    expect(() => controller.lookupBarcode({ barcode: ' ' })).toThrow(
-      BadRequestException,
-    );
+    expect(() => controller.lookupBarcode({ barcode: ' ' })).toThrow(BadRequestException);
   });
 });

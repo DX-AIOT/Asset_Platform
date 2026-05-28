@@ -94,7 +94,10 @@ export class VisionRecognitionService {
     const parsed = JSON.parse(raw) as OpenAIPrediction;
 
     const fallbackSuggested =
-      !parsed.name || !parsed.model || parsed.confidence.name < 0.7 || parsed.confidence.model < 0.65;
+      !parsed.name ||
+      !parsed.model ||
+      parsed.confidence.name < 0.7 ||
+      parsed.confidence.model < 0.65;
 
     return {
       name: { value: parsed.name, confidence: parsed.confidence.name },

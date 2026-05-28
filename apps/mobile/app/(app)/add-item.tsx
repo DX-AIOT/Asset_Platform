@@ -41,7 +41,8 @@ export default function AddItem() {
   const mapProductCategoryToItemCategory = (rawCategory: string): ItemCategory => {
     const normalized = rawCategory.toLowerCase();
     if (normalized.includes('audio')) return ItemCategory.ELECTRONICS;
-    if (normalized.includes('computer') || normalized.includes('peripheral')) return ItemCategory.ELECTRONICS;
+    if (normalized.includes('computer') || normalized.includes('peripheral'))
+      return ItemCategory.ELECTRONICS;
     return ItemCategory.OTHER;
   };
 
@@ -76,14 +77,20 @@ export default function AddItem() {
         });
 
         if (!result.found) {
-          Alert.alert('Barcode saved', 'No product info found. Barcode has been saved in Serial Number.');
+          Alert.alert(
+            'Barcode saved',
+            'No product info found. Barcode has been saved in Serial Number.'
+          );
         }
       } catch {
         setFormData((current) => ({
           ...current,
           serial: current.serial || barcode,
         }));
-        Alert.alert('Lookup failed', 'Could not fetch product info. Barcode was saved in Serial Number.');
+        Alert.alert(
+          'Lookup failed',
+          'Could not fetch product info. Barcode was saved in Serial Number.'
+        );
       } finally {
         setLookupLoading(false);
       }
@@ -96,7 +103,7 @@ export default function AddItem() {
     if (Platform.OS !== 'web') {
       const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
       const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (cameraStatus !== 'granted' || mediaStatus !== 'granted') {
         Alert.alert(
           'Permissions Required',
@@ -136,7 +143,7 @@ export default function AddItem() {
     });
 
     if (!result.canceled) {
-      const newPhotos = result.assets.map(asset => asset.uri);
+      const newPhotos = result.assets.map((asset) => asset.uri);
       setPhotos([...photos, ...newPhotos]);
     }
   };
@@ -146,15 +153,11 @@ export default function AddItem() {
   };
 
   const showPhotoOptions = () => {
-    Alert.alert(
-      'Add Photo',
-      'Choose a source',
-      [
-        { text: 'Camera', onPress: pickImageFromCamera },
-        { text: 'Gallery', onPress: pickImageFromGallery },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+    Alert.alert('Add Photo', 'Choose a source', [
+      { text: 'Camera', onPress: pickImageFromCamera },
+      { text: 'Gallery', onPress: pickImageFromGallery },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleSubmit = async () => {
@@ -179,7 +182,7 @@ export default function AddItem() {
       };
 
       await itemsApi.create(itemData);
-      
+
       Alert.alert('Success', 'Item added successfully', [
         { text: 'OK', onPress: () => router.back() },
       ]);
@@ -197,11 +200,7 @@ export default function AddItem() {
           <Text style={styles.backButtonText}>Cancel</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Add Item</Text>
-        <TouchableOpacity 
-          onPress={handleSubmit} 
-          style={styles.saveButton}
-          disabled={loading}
-        >
+        <TouchableOpacity onPress={handleSubmit} style={styles.saveButton} disabled={loading}>
           <Text style={[styles.saveButtonText, loading && styles.disabledText]}>
             {loading ? 'Saving...' : 'Save'}
           </Text>
@@ -228,7 +227,11 @@ export default function AddItem() {
         {/* Photos Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.photosContainer}
+          >
             {photos.map((uri: string, index: number) => (
               <View key={index} style={styles.photoWrapper}>
                 <Image source={{ uri }} style={styles.photo} />
@@ -250,7 +253,7 @@ export default function AddItem() {
         {/* Basic Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Name *</Text>
             <TextInput
@@ -295,18 +298,20 @@ export default function AddItem() {
             </TouchableOpacity>
             {showCategoryPicker && (
               <View style={styles.pickerOptions}>
-                {(Object.entries(CATEGORY_LABELS) as [ItemCategory, string][]).map(([key, label]) => (
-                  <TouchableOpacity
-                    key={key}
-                    style={styles.pickerOption}
-                    onPress={() => {
-                      setFormData({ ...formData, category: key });
-                      setShowCategoryPicker(false);
-                    }}
-                  >
-                    <Text style={styles.pickerOptionText}>{label}</Text>
-                  </TouchableOpacity>
-                ))}
+                {(Object.entries(CATEGORY_LABELS) as [ItemCategory, string][]).map(
+                  ([key, label]) => (
+                    <TouchableOpacity
+                      key={key}
+                      style={styles.pickerOption}
+                      onPress={() => {
+                        setFormData({ ...formData, category: key });
+                        setShowCategoryPicker(false);
+                      }}
+                    >
+                      <Text style={styles.pickerOptionText}>{label}</Text>
+                    </TouchableOpacity>
+                  )
+                )}
               </View>
             )}
           </View>
@@ -326,7 +331,7 @@ export default function AddItem() {
         {/* Purchase Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Purchase Information</Text>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Purchase Date</Text>
             <TextInput
@@ -354,7 +359,7 @@ export default function AddItem() {
         {/* Location */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Location</Text>
-          
+
           <View style={styles.inputGroup}>
             <TouchableOpacity
               style={styles.picker}
@@ -387,7 +392,7 @@ export default function AddItem() {
         {/* Notes */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notes</Text>
-          
+
           <TextInput
             style={[styles.input, styles.textArea]}
             value={formData.notes}

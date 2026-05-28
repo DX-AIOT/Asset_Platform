@@ -11,9 +11,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dxsolutions.assetplatform"
@@ -29,9 +27,6 @@
       "favicon": "./assets/favicon.png"
     },
     "scheme": "assetplatform",
-    "plugins": [
-      "expo-router",
-      "expo-secure-store"
-    ]
+    "plugins": ["expo-router", "expo-secure-store"]
   }
 }

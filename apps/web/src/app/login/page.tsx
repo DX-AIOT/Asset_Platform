@@ -12,7 +12,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    return () => { clearError(); };
+    return () => {
+      clearError();
+    };
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -76,7 +78,10 @@ export default function LoginPage() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => { clearError(); setEmail(e.target.value); }}
+                onChange={(e) => {
+                  clearError();
+                  setEmail(e.target.value);
+                }}
                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Enter your email"
               />
@@ -93,7 +98,10 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 required
                 value={password}
-                onChange={(e) => { clearError(); setPassword(e.target.value); }}
+                onChange={(e) => {
+                  clearError();
+                  setPassword(e.target.value);
+                }}
                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Enter your password"
               />

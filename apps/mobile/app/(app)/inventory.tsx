@@ -119,15 +119,11 @@ export default function Inventory() {
           <ItemCard item={item} onPress={() => handleItemPress(item.id)} />
         )}
         contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No items found</Text>
-            <Text style={styles.emptySubtext}>
-              Add your first item to get started
-            </Text>
+            <Text style={styles.emptySubtext}>Add your first item to get started</Text>
           </View>
         }
       />

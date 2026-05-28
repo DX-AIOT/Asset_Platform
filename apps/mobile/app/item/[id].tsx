@@ -71,12 +71,7 @@ export default function ItemDetail() {
             style={styles.photoGallery}
           >
             {item.photos.map((photo: string, index: number) => (
-              <Image
-                key={index}
-                source={{ uri: photo }}
-                style={styles.photo}
-                resizeMode="cover"
-              />
+              <Image key={index} source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
             ))}
           </ScrollView>
         ) : (
@@ -88,18 +83,14 @@ export default function ItemDetail() {
         <View style={styles.content}>
           <View style={styles.section}>
             <Text style={styles.name}>{item.name}</Text>
-            {item.brand && (
-              <Text style={styles.brand}>{item.brand}</Text>
-            )}
+            {item.brand && <Text style={styles.brand}>{item.brand}</Text>}
           </View>
 
           <View style={styles.section}>
             <View style={styles.row}>
               <View style={styles.infoBox}>
                 <Text style={styles.infoLabel}>Category</Text>
-                <Text style={styles.infoValue}>
-                  {CATEGORY_LABELS[item.category]}
-                </Text>
+                <Text style={styles.infoValue}>{CATEGORY_LABELS[item.category]}</Text>
               </View>
               <View style={styles.infoBox}>
                 <Text style={styles.infoLabel}>Condition</Text>
@@ -134,27 +125,21 @@ export default function ItemDetail() {
           {item.purchasePrice && (
             <View style={styles.section}>
               <Text style={styles.label}>Purchase Price</Text>
-              <Text style={styles.priceValue}>
-                ${Number(item.purchasePrice).toLocaleString()}
-              </Text>
+              <Text style={styles.priceValue}>${Number(item.purchasePrice).toLocaleString()}</Text>
             </View>
           )}
 
           {item.purchaseDate && (
             <View style={styles.section}>
               <Text style={styles.label}>Purchase Date</Text>
-              <Text style={styles.value}>
-                {new Date(item.purchaseDate).toLocaleDateString()}
-              </Text>
+              <Text style={styles.value}>{new Date(item.purchaseDate).toLocaleDateString()}</Text>
             </View>
           )}
 
           {item.warrantyExpiry && (
             <View style={styles.section}>
               <Text style={styles.label}>Warranty Expiry</Text>
-              <Text style={styles.value}>
-                {new Date(item.warrantyExpiry).toLocaleDateString()}
-              </Text>
+              <Text style={styles.value}>{new Date(item.warrantyExpiry).toLocaleDateString()}</Text>
             </View>
           )}
 

@@ -2,22 +2,19 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Item, ItemCategory } from './entities/item.entity';
-import {
-  ItemsListResponseDto,
-  PortfolioValueResponseDto,
-} from './dto';
+import { ItemsListResponseDto, PortfolioValueResponseDto } from './dto';
 
 @Injectable()
 export class ItemsService {
   constructor(
     @InjectRepository(Item)
-    private itemsRepository: Repository<Item>,
+    private itemsRepository: Repository<Item>
   ) {}
 
   async findMyItems(
     userId: string,
     category?: ItemCategory,
-    location?: string,
+    location?: string
   ): Promise<ItemsListResponseDto> {
     const queryBuilder = this.itemsRepository
       .createQueryBuilder('item')
@@ -33,9 +30,7 @@ export class ItemsService {
       });
     }
 
-    const [items, total] = await queryBuilder
-      .orderBy('item.createdAt', 'DESC')
-      .getManyAndCount();
+    const [items, total] = await queryBuilder.orderBy('item.createdAt', 'DESC').getManyAndCount();
 
     return { items, total };
   }
@@ -52,23 +47,17 @@ export class ItemsService {
     return item;
   }
 
-  async calculatePortfolioValue(
-    userId: string,
-  ): Promise<PortfolioValueResponseDto> {
+  async calculatePortfolioValue(userId: string): Promise<PortfolioValueResponseDto> {
     const items = await this.itemsRepository.find({
       where: { userId },
       select: ['purchasePrice', 'depreciatedValue'],
     });
 
-    const total = items.reduce(
-      (sum, item) => sum + (Number(item.purchasePrice) || 0),
-      0,
-    );
+    const total = items.reduce((sum, item) => sum + (Number(item.purchasePrice) || 0), 0);
 
     const depreciated = items.reduce(
-      (sum, item) =>
-        sum + (Number(item.depreciatedValue) || Number(item.purchasePrice) || 0),
-      0,
+      (sum, item) => sum + (Number(item.depreciatedValue) || Number(item.purchasePrice) || 0),
+      0
     );
 
     return {

@@ -27,7 +27,11 @@ function formatCurrency(amount: number): string {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 export default function DashboardPage() {
@@ -53,10 +57,7 @@ export default function DashboardPage() {
   const loadDashboardData = async () => {
     try {
       setLoadingData(true);
-      const [assetsData, valueData] = await Promise.all([
-        getMyAssets(),
-        getMyAssetsValue(),
-      ]);
+      const [assetsData, valueData] = await Promise.all([getMyAssets(), getMyAssetsValue()]);
       setAssets(assetsData);
       setValue(valueData);
     } catch (err) {
@@ -156,7 +157,9 @@ export default function DashboardPage() {
             <div className="p-12 text-center text-gray-500">
               <p className="text-4xl mb-3">📦</p>
               <p className="text-lg font-medium">No assets yet</p>
-              <p className="text-sm mt-1">Start tracking your belongings by adding your first asset.</p>
+              <p className="text-sm mt-1">
+                Start tracking your belongings by adding your first asset.
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
@@ -164,16 +167,16 @@ export default function DashboardPage() {
                 <div key={asset.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-4">
-                      <div className="text-3xl mt-1">
-                        {categoryIcons[asset.category] || '📦'}
-                      </div>
+                      <div className="text-3xl mt-1">{categoryIcons[asset.category] || '📦'}</div>
                       <div>
                         <h4 className="text-base font-semibold text-gray-900">{asset.name}</h4>
                         <p className="text-sm text-gray-500">
                           {asset.brand} · {asset.model} · SN: {asset.serial}
                         </p>
                         <div className="flex items-center gap-2 mt-2">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${conditionColors[asset.condition] || 'bg-gray-100 text-gray-800'}`}>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${conditionColors[asset.condition] || 'bg-gray-100 text-gray-800'}`}
+                          >
                             {asset.condition.replace('_', ' ')}
                           </span>
                           <span className="text-xs text-gray-400">📍 {asset.location}</span>
@@ -184,7 +187,9 @@ export default function DashboardPage() {
                           )}
                         </div>
                         {asset.notes && (
-                          <p className="text-xs text-gray-400 mt-1 max-w-lg truncate">{asset.notes}</p>
+                          <p className="text-xs text-gray-400 mt-1 max-w-lg truncate">
+                            {asset.notes}
+                          </p>
                         )}
                       </div>
                     </div>

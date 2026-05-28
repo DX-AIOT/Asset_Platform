@@ -93,7 +93,9 @@ export class OcrReceiptService {
     const warrantyMonths = this.normalizeAmount(raw.warrantyPeriodMonths ?? null);
     const warrantyExpiryDate =
       explicitWarrantyDate ??
-      (purchaseDate && warrantyMonths ? this.addMonths(purchaseDate, Math.floor(warrantyMonths)) : null);
+      (purchaseDate && warrantyMonths
+        ? this.addMonths(purchaseDate, Math.floor(warrantyMonths))
+        : null);
 
     return {
       purchaseDate,
@@ -154,7 +156,10 @@ export class OcrReceiptService {
       }
     } else if (hasComma) {
       const groups = stripped.split(',');
-      normalized = groups[groups.length - 1].length === 3 ? stripped.replace(/,/g, '') : stripped.replace(',', '.');
+      normalized =
+        groups[groups.length - 1].length === 3
+          ? stripped.replace(/,/g, '')
+          : stripped.replace(',', '.');
     } else {
       normalized = stripped;
     }

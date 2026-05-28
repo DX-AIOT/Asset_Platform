@@ -75,16 +75,12 @@ export default function ReviewScreen() {
     try {
       // TODO: Save to inventory API
       // For now, just show success
-      Alert.alert(
-        'Success',
-        'Asset saved to inventory!',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/(app)'),
-          },
-        ]
-      );
+      Alert.alert('Success', 'Asset saved to inventory!', [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/(app)'),
+        },
+      ]);
     } catch (err: any) {
       console.error('Save error:', err);
       Alert.alert('Error', 'Failed to save asset. Please try again.');
@@ -130,9 +126,7 @@ export default function ReviewScreen() {
           {error && (
             <View style={styles.errorBanner}>
               <Text style={styles.errorBannerText}>⚠️ {error}</Text>
-              <Text style={styles.errorBannerSubtext}>
-                Please fill in the details manually
-              </Text>
+              <Text style={styles.errorBannerSubtext}>Please fill in the details manually</Text>
             </View>
           )}
 
@@ -142,8 +136,8 @@ export default function ReviewScreen() {
                 ✓ AI detected your asset in {aiResult.latencyMs}ms
               </Text>
               <Text style={styles.successBannerSubtext}>
-                Name: {Math.round(aiResult.name.confidence * 100)}% •
-                Category: {Math.round(aiResult.category.confidence * 100)}%
+                Name: {Math.round(aiResult.name.confidence * 100)}% • Category:{' '}
+                {Math.round(aiResult.category.confidence * 100)}%
               </Text>
             </View>
           )}
@@ -193,11 +187,7 @@ export default function ReviewScreen() {
           </View>
 
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={styles.retakeButton}
-              onPress={handleRetake}
-              disabled={saving}
-            >
+            <TouchableOpacity style={styles.retakeButton} onPress={handleRetake} disabled={saving}>
               <Text style={styles.retakeButtonText}>Retake Photo</Text>
             </TouchableOpacity>
 

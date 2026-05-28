@@ -6,9 +6,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: process.env.NODE_ENV === 'production'
-      ? process.env.ALLOWED_ORIGINS?.split(',') || []
-      : true,
+    origin:
+      process.env.NODE_ENV === 'production' ? process.env.ALLOWED_ORIGINS?.split(',') || [] : true,
     credentials: true,
   });
 
@@ -17,7 +16,7 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
-    }),
+    })
   );
 
   app.setGlobalPrefix('api');

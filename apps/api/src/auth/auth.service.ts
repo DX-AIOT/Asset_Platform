@@ -32,7 +32,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponse> {

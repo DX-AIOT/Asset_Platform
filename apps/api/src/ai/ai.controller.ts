@@ -2,17 +2,14 @@ import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
 import { RecognizeAssetDto } from './dto/recognize-asset.dto';
 import { VisionRecognitionService } from './vision-recognition.service';
 import { AssetRecognitionResult } from '../shared/vision';
-import {
-  BarcodeLookupRequestDto,
-  BarcodeLookupResponseDto,
-} from './dto/barcode-lookup.dto';
+import { BarcodeLookupRequestDto, BarcodeLookupResponseDto } from './dto/barcode-lookup.dto';
 import { BarcodeLookupService } from './barcode-lookup.service';
 
 @Controller('ai')
 export class AiController {
   constructor(
     private readonly visionRecognitionService: VisionRecognitionService,
-    private readonly barcodeLookupService: BarcodeLookupService,
+    private readonly barcodeLookupService: BarcodeLookupService
   ) {}
 
   @Post('recognize')

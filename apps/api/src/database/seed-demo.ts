@@ -48,15 +48,14 @@ async function seedDemo() {
         category: ItemCategory.MOBILE_PHONES,
         serial: 'F17MH3QA1Y',
         purchaseDate: new Date('2023-09-20'),
-        purchasePrice: 1199.00,
+        purchasePrice: 1199.0,
         condition: ItemCondition.LIKE_NEW,
         location: 'Home Office',
-        photos: [
-          'https://images.unsplash.com/photo-1663499482523-1c0a8b0b1f1f?w=800',
-        ],
+        photos: ['https://images.unsplash.com/photo-1663499482523-1c0a8b0b1f1f?w=800'],
         warrantyExpiry: new Date('2024-09-20'),
-        notes: 'Deep Purple 256GB. Purchased from Apple Store. Original box and accessories included.',
-        depreciatedValue: 899.00,
+        notes:
+          'Deep Purple 256GB. Purchased from Apple Store. Original box and accessories included.',
+        depreciatedValue: 899.0,
         userId: demoUser.id,
       },
       {
@@ -66,15 +65,13 @@ async function seedDemo() {
         category: ItemCategory.LAPTOPS,
         serial: 'C02ZL8QZMD6T',
         purchaseDate: new Date('2023-01-15'),
-        purchasePrice: 3499.00,
+        purchasePrice: 3499.0,
         condition: ItemCondition.GOOD,
         location: 'Home Office',
-        photos: [
-          'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800',
-        ],
+        photos: ['https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800'],
         warrantyExpiry: new Date('2026-01-15'),
         notes: 'M2 Max, 32GB RAM, 1TB SSD. AppleCare+ extended warranty.',
-        depreciatedValue: 2799.00,
+        depreciatedValue: 2799.0,
         userId: demoUser.id,
       },
       {
@@ -87,9 +84,7 @@ async function seedDemo() {
         purchasePrice: 28500000, // VND equivalent ~1200 USD
         condition: ItemCondition.GOOD,
         location: 'Garage',
-        photos: [
-          'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
-        ],
+        photos: ['https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800'],
         warrantyExpiry: new Date('2025-06-10'),
         notes: 'Xe máy số tự động, màu đen. Đã chạy 15,000km. Bảo dưỡng định kỳ.',
         depreciatedValue: 22000000,

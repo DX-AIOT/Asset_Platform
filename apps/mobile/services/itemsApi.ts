@@ -20,9 +20,7 @@ export const itemsApi = {
     return api.get<ItemsResponse>(`/items/my${params.toString() ? `?${params.toString()}` : ''}`);
   },
 
-  getItemById: (id: string) =>
-    api.get<Item>(`/items/${id}`),
+  getItemById: (id: string) => api.get<Item>(`/items/${id}`),
 
-  getTotalValue: () =>
-    api.get<{ total: number; depreciated: number }>('/items/my/value'),
+  getTotalValue: () => api.get<{ total: number; depreciated: number }>('/items/my/value'),
 };
