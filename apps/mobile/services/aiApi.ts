@@ -15,6 +15,20 @@ export interface AssetRecognitionResult {
   latencyMs: number;
 }
 
+export interface BarcodeLookupProduct {
+  barcode: string;
+  name: string;
+  brand: string;
+  category: string;
+}
+
+export interface BarcodeLookupResponse {
+  found: boolean;
+  barcode: string;
+  product: BarcodeLookupProduct | null;
+  fallbackOnly: boolean;
+}
+
 export const aiApi = {
   recognizeAsset: async (imageUri: string): Promise<AssetRecognitionResult> => {
     // Read image file and convert to base64
@@ -31,6 +45,13 @@ export const aiApi = {
         timeout: 10000, // 10 second timeout
       }
     );
+
+    return response.data;
+  },
+  lookupBarcode: async (barcode: string): Promise<BarcodeLookupResponse> => {
+    const response = await api.post<BarcodeLookupResponse>('/ai/barcode-lookup', {
+      barcode,
+    });
 
     return response.data;
   },

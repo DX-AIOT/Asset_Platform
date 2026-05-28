@@ -30,65 +30,65 @@ export enum ItemCategory {
 @Entity('items')
 export class Item {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  name: string;
+  name!: string;
 
   @Column({ nullable: true })
-  brand: string;
+  brand!: string;
 
   @Column({ nullable: true })
-  model: string;
+  model!: string;
 
   @Column({
     type: 'enum',
     enum: ItemCategory,
     default: ItemCategory.OTHER,
   })
-  category: ItemCategory;
+  category!: ItemCategory;
 
   @Column({ nullable: true })
-  serial: string;
+  serial!: string;
 
   @Column({ type: 'date', nullable: true })
-  purchaseDate: Date;
+  purchaseDate!: Date;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
-  purchasePrice: number;
+  purchasePrice!: number;
 
   @Column({
     type: 'enum',
     enum: ItemCondition,
     default: ItemCondition.GOOD,
   })
-  condition: ItemCondition;
+  condition!: ItemCondition;
 
   @Column({ nullable: true })
-  location: string;
+  location!: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  photos: string[];
+  photos!: string[];
 
   @Column({ type: 'date', nullable: true })
-  warrantyExpiry: Date;
+  warrantyExpiry!: Date;
 
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  notes!: string;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
-  depreciatedValue: number;
+  depreciatedValue!: number;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user!: User;
 
   @Column()
-  userId: string;
+  userId!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }
