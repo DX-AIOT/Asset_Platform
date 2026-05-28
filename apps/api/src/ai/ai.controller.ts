@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
 import { RecognizeAssetDto } from './dto/recognize-asset.dto';
 import { VisionRecognitionService } from './vision-recognition.service';
-import { AssetRecognitionResult } from '@dx-aiot/shared';
+import { AssetRecognitionResult } from '../shared/vision';
 import {
   BarcodeLookupRequestDto,
   BarcodeLookupResponseDto,

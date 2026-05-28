@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: asset_pass_dev
       POSTGRES_DB: asset_platform
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init-db:/docker-entrypoint-initdb.d
@@ -49,7 +49,7 @@ services:
       NODE_ENV: development
       API_PORT: 3001
       API_HOST: 0.0.0.0
-      DATABASE_URL: postgresql://asset_user:asset_pass_dev@postgres:5432/asset_platform
+      DATABASE_URL: postgresql://asset_user:asset_pass_dev@postgres:5432/asset_platform  # internal docker network, not host port
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-jwt-secret-change-in-production
       JWT_EXPIRES_IN: 7d
@@ -58,10 +58,8 @@ services:
     ports:
       - '3001:3001'
     volumes:
-      - ./apps/api:/app/apps/api
+      - ./apps/api/src:/app/apps/api/src
       - ./packages:/app/packages
-      - /app/node_modules
-      - /app/apps/api/node_modules
     depends_on:
       postgres:
         condition: service_healthy

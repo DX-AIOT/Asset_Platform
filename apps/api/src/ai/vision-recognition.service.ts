@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { AssetRecognitionResult } from '@dx-aiot/shared';
+import { AssetRecognitionResult } from '../shared/vision';
 
 type OpenAIPrediction = {
   name: string | null;
@@ -18,42 +18,46 @@ type OpenAIPrediction = {
 
 @Injectable()
 export class VisionRecognitionService {
-  private readonly openai: OpenAI;
+  private readonly openai: OpenAI | null;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    this.openai = new OpenAI({ apiKey });
+    this.openai = apiKey ? new OpenAI({ apiKey }) : null;
   }
 
   async recognizeFromBase64(imageBase64: string): Promise<AssetRecognitionResult> {
+    if (!this.openai) {
+      throw new Error('OPENAI_API_KEY not configured — AI features disabled in local dev');
+    }
     const startedAt = Date.now();
 
     const response = await this.openai.responses.create({
       model: 'gpt-4o-mini',
       input: [
         {
-          role: 'system',
+          role: 'system' as const,
           content: [
             {
-              type: 'input_text',
+              type: 'input_text' as const,
               text: 'Bạn là chuyên gia phân loại tài sản gia dụng tại Việt Nam. Trả JSON với name, brand, model, category và confidence cho từng trường (0..1).',
             },
           ],
         },
         {
-          role: 'user',
+          role: 'user' as const,
           content: [
             {
-              type: 'input_text',
+              type: 'input_text' as const,
               text: 'Phân tích ảnh tài sản và trả JSON theo schema yêu cầu.',
             },
             {
-              type: 'input_image',
+              type: 'input_image' as const,
               image_url: `data:image/jpeg;base64,${imageBase64}`,
+              detail: 'auto' as const,
             },
           ],
         },
-      ],
+      ] as any,
       text: {
         format: {
           type: 'json_schema',

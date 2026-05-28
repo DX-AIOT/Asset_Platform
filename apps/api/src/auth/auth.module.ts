@@ -6,9 +6,15 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+
+const optionalProviders = [];
+if (process.env.GOOGLE_CLIENT_ID) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { GoogleStrategy } = require('./strategies/google.strategy');
+  optionalProviders.push(GoogleStrategy);
+}
 
 @Module({
   imports: [
@@ -26,7 +32,7 @@ import { RolesGuard } from './guards/roles.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, GoogleStrategy, JwtAuthGuard, RolesGuard],
+  providers: [AuthService, JwtStrategy, ...optionalProviders, JwtAuthGuard, RolesGuard],
   exports: [AuthService, JwtAuthGuard, RolesGuard],
 })
 export class AuthModule {}

@@ -27,12 +27,12 @@ export class UsersService {
     return this.usersRepository.save(user);
   }
 
-  async update(id: string, userData: Partial<User>): Promise<User> {
+  async update(id: string, userData: Partial<User>): Promise<User | null> {
     await this.usersRepository.update(id, userData);
     return this.findById(id);
   }
 
   async updateRefreshToken(userId: string, refreshToken: string | null): Promise<void> {
-    await this.usersRepository.update(userId, { refreshToken });
+    await this.usersRepository.update(userId, { refreshToken: refreshToken ?? undefined });
   }
 }

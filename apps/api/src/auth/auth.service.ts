@@ -132,12 +132,12 @@ export class AuthService {
       }
     }
 
-    const tokens = await this.generateTokens(user);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    const tokens = await this.generateTokens(user!);
+    await this.updateRefreshToken(user!.id, tokens.refreshToken);
 
     return {
       ...tokens,
-      user: this.sanitizeUser(user),
+      user: this.sanitizeUser(user!),
     };
   }
 
