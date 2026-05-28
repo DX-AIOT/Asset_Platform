@@ -13,7 +13,7 @@ export default function PasswordStrength({ password }: PasswordStrengthProps) {
     if (/\d/.test(pwd)) score++;
     if (/[^a-zA-Z0-9]/.test(pwd)) score++;
 
-    if (score <= 2) return 'weak';
+    if (score < 2) return 'weak';
     if (score <= 3) return 'medium';
     return 'strong';
   };

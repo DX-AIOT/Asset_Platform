@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
     } catch (error) {
       authApi.clearTokens();
+      deleteCookie('auth_token');
       setUser(null);
       setError('Session expired, please login again');
     }
