@@ -52,12 +52,25 @@ git branch -d feature/DXS-123-asset-upload
 
 ### Pull Request Guidelines
 
+#### Branch Safety Guard (DXS-55)
+- Install local pre-push hook once per clone:
+```bash
+cp scripts/branch-policy-guard.sh .git/hooks/pre-push
+chmod +x .git/hooks/pre-push
+```
+- The hook blocks direct pushes to `main` and instructs `dev` -> PR flow
+- Emergency override (CTO-approved only): `ALLOW_MAIN_PUSH=1 git push ...`
+- CI also validates PR routing: only `dev` can target `main`
+
+
 #### Khi tạo PR:
 - ✅ Title format: `[DXS-123] Short description`
 - ✅ Link đến issue trong description
 - ✅ Mô tả changes và testing đã làm
 - ✅ Screenshot (nếu có UI changes)
 - ✅ Checklist: Tests pass, Lint pass, TypeScript pass
+- ✅ Local-first gate pass: `npm run qa:local-first-gate`
+- ✅ Nếu thay đổi backend/runtime config: đính kèm kết quả `docker compose up` local smoke (log snippet hoặc screenshot)
 
 #### Review Process:
 1. Developer tạo PR vào `dev`
@@ -148,6 +161,7 @@ npm run lint
 npm run typecheck
 npm run test
 npm run build
+npm run qa:local-first-gate
 ```
 
 ### Test Requirements:
