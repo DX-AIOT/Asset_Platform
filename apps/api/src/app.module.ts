@@ -5,6 +5,9 @@ import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ItemsModule } from './items/items.module';
+import { DatabaseSeedService } from './database/database-seed.service';
+import { User } from './users/entities/user.entity';
+import { Item } from './items/entities/item.entity';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -18,15 +21,16 @@ import { AppService } from './app.service';
       type: 'postgres',
       url: process.env.DATABASE_URL,
       autoLoadEntities: true,
-      synchronize: process.env.NODE_ENV === 'development',
+      synchronize: ['development', 'staging'].includes(process.env.NODE_ENV || ''),
       logging: process.env.NODE_ENV === 'development',
     }),
+    TypeOrmModule.forFeature([User, Item]),
     AiModule,
     AuthModule,
     UsersModule,
     ItemsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, DatabaseSeedService],
 })
 export class AppModule {}
