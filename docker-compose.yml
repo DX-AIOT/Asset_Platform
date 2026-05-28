@@ -1,0 +1,82 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: asset_platform_postgres
+    environment:
+      POSTGRES_USER: asset_user
+      POSTGRES_PASSWORD: asset_pass_dev
+      POSTGRES_DB: asset_platform
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U asset_user -d asset_platform']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - asset_network
+
+  # Redis for caching and job queue
+  redis:
+    image: redis:7-alpine
+    container_name: asset_platform_redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - asset_network
+
+  # NestJS Backend API
+  api:
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile
+    container_name: asset_platform_api
+    environment:
+      NODE_ENV: development
+      API_PORT: 3001
+      API_HOST: 0.0.0.0
+      DATABASE_URL: postgresql://asset_user:asset_pass_dev@postgres:5432/asset_platform
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      JWT_EXPIRES_IN: 7d
+      REFRESH_TOKEN_SECRET: dev-refresh-secret-change-in-production
+      REFRESH_TOKEN_EXPIRES_IN: 30d
+    ports:
+      - '3001:3001'
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/api/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - asset_network
+    command: npm run dev
+
+volumes:
+  postgres_data:
+    name: asset_platform_postgres_data
+  redis_data:
+    name: asset_platform_redis_data
+
+networks:
+  asset_network:
+    name: asset_platform_network
+    driver: bridge

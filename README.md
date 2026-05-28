@@ -16,10 +16,36 @@ Asset_Platform/
 └── README.md
 ```
 
-## 🚀 Quick Start (< 15 phút)
+## 🚀 Quick Start
 
-### Prerequisites
+### Option 1: Docker (Recommended - Nhanh nhất!)
 
+**Prerequisites:** Docker và Docker Compose
+
+```bash
+# Clone repository
+git clone https://github.com/DX-AIoT/Asset_Platform.git
+cd Asset_Platform
+
+# Start tất cả services
+docker compose up
+
+# Hoặc chạy ở background
+docker compose up -d
+```
+
+✅ **Done!** API sẽ chạy ở http://localhost:3001 với:
+- PostgreSQL + pgvector extension
+- Redis cache
+- 3 sample assets đã được seed sẵn
+
+Xem thêm: [Docker Setup Guide](./docker/README.md)
+
+---
+
+### Option 2: Manual Setup (< 15 phút)
+
+**Prerequisites:**
 - **Node.js** >= 18.0.0
 - **npm** >= 9.0.0
 - **Git**

@@ -1,0 +1,497 @@
+import { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  Alert,
+  Platform,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { itemsApi } from '../../services/api';
+import { ItemCategory, CATEGORY_LABELS, LOCATION_OPTIONS } from '../../types/item';
+
+export default function AddItem() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    brand: '',
+    model: '',
+    category: ItemCategory.OTHER,
+    serial: '',
+    purchaseDate: '',
+    purchasePrice: '',
+    location: '',
+    notes: '',
+  });
+
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+
+  const requestPermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (cameraStatus !== 'granted' || mediaStatus !== 'granted') {
+        Alert.alert(
+          'Permissions Required',
+          'Camera and photo library permissions are needed to add photos.'
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const pickImageFromCamera = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setPhotos([...photos, result.assets[0].uri]);
+    }
+  };
+
+  const pickImageFromGallery = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      const newPhotos = result.assets.map(asset => asset.uri);
+      setPhotos([...photos, ...newPhotos]);
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos(photos.filter((_: string, i: number) => i !== index));
+  };
+
+  const showPhotoOptions = () => {
+    Alert.alert(
+      'Add Photo',
+      'Choose a source',
+      [
+        { text: 'Camera', onPress: pickImageFromCamera },
+        { text: 'Gallery', onPress: pickImageFromGallery },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.name.trim()) {
+      Alert.alert('Error', 'Please enter item name');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const itemData = {
+        name: formData.name,
+        brand: formData.brand || undefined,
+        model: formData.model || undefined,
+        category: formData.category,
+        serial: formData.serial || undefined,
+        purchaseDate: formData.purchaseDate || undefined,
+        purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
+        location: formData.location || undefined,
+        notes: formData.notes || undefined,
+        photos: photos.length > 0 ? photos : undefined,
+      };
+
+      await itemsApi.create(itemData);
+      
+      Alert.alert('Success', 'Item added successfully', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to add item');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Cancel</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Add Item</Text>
+        <TouchableOpacity 
+          onPress={handleSubmit} 
+          style={styles.saveButton}
+          disabled={loading}
+        >
+          <Text style={[styles.saveButtonText, loading && styles.disabledText]}>
+            {loading ? 'Saving...' : 'Save'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Photos Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Photos</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
+            {photos.map((uri: string, index: number) => (
+              <View key={index} style={styles.photoWrapper}>
+                <Image source={{ uri }} style={styles.photo} />
+                <TouchableOpacity
+                  style={styles.removePhotoButton}
+                  onPress={() => removePhoto(index)}
+                >
+                  <Text style={styles.removePhotoText}>×</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+            <TouchableOpacity style={styles.addPhotoButton} onPress={showPhotoOptions}>
+              <Text style={styles.addPhotoText}>+</Text>
+              <Text style={styles.addPhotoLabel}>Add Photo</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
+        {/* Basic Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Basic Information</Text>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Name *</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.name}
+              onChangeText={(text: string) => setFormData({ ...formData, name: text })}
+              placeholder="Enter item name"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Brand</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.brand}
+              onChangeText={(text) => setFormData({ ...formData, brand: text })}
+              placeholder="Enter brand"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Model</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.model}
+              onChangeText={(text) => setFormData({ ...formData, model: text })}
+              placeholder="Enter model"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Category *</Text>
+            <TouchableOpacity
+              style={styles.picker}
+              onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+            >
+              <Text style={styles.pickerText}>{CATEGORY_LABELS[formData.category]}</Text>
+              <Text style={styles.pickerArrow}>▼</Text>
+            </TouchableOpacity>
+            {showCategoryPicker && (
+              <View style={styles.pickerOptions}>
+                {(Object.entries(CATEGORY_LABELS) as [ItemCategory, string][]).map(([key, label]) => (
+                  <TouchableOpacity
+                    key={key}
+                    style={styles.pickerOption}
+                    onPress={() => {
+                      setFormData({ ...formData, category: key });
+                      setShowCategoryPicker(false);
+                    }}
+                  >
+                    <Text style={styles.pickerOptionText}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Serial Number</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.serial}
+              onChangeText={(text) => setFormData({ ...formData, serial: text })}
+              placeholder="Enter serial number"
+              placeholderTextColor="#999"
+            />
+          </View>
+        </View>
+
+        {/* Purchase Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Purchase Information</Text>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Purchase Date</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.purchaseDate}
+              onChangeText={(text) => setFormData({ ...formData, purchaseDate: text })}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Purchase Price</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.purchasePrice}
+              onChangeText={(text) => setFormData({ ...formData, purchasePrice: text })}
+              placeholder="Enter price"
+              placeholderTextColor="#999"
+              keyboardType="decimal-pad"
+            />
+          </View>
+        </View>
+
+        {/* Location */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Location</Text>
+          
+          <View style={styles.inputGroup}>
+            <TouchableOpacity
+              style={styles.picker}
+              onPress={() => setShowLocationPicker(!showLocationPicker)}
+            >
+              <Text style={[styles.pickerText, !formData.location && styles.placeholderText]}>
+                {formData.location || 'Select location'}
+              </Text>
+              <Text style={styles.pickerArrow}>▼</Text>
+            </TouchableOpacity>
+            {showLocationPicker && (
+              <View style={styles.pickerOptions}>
+                {LOCATION_OPTIONS.map((location) => (
+                  <TouchableOpacity
+                    key={location}
+                    style={styles.pickerOption}
+                    onPress={() => {
+                      setFormData({ ...formData, location });
+                      setShowLocationPicker(false);
+                    }}
+                  >
+                    <Text style={styles.pickerOptionText}>{location}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Notes */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notes</Text>
+          
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={formData.notes}
+            onChangeText={(text) => setFormData({ ...formData, notes: text })}
+            placeholder="Add any additional notes..."
+            placeholderTextColor="#999"
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+          />
+        </View>
+
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    paddingTop: Platform.OS === 'ios' ? 60 : 16,
+  },
+  backButton: {
+    padding: 8,
+  },
+  backButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000',
+  },
+  saveButton: {
+    padding: 8,
+  },
+  saveButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  disabledText: {
+    opacity: 0.5,
+  },
+  content: {
+    flex: 1,
+  },
+  section: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 12,
+  },
+  photosContainer: {
+    flexDirection: 'row',
+  },
+  photoWrapper: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  photo: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FF3B30',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removePhotoText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  addPhotoButton: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPhotoText: {
+    fontSize: 32,
+    color: '#007AFF',
+  },
+  addPhotoLabel: {
+    fontSize: 12,
+    color: '#007AFF',
+    marginTop: 4,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#000',
+    backgroundColor: '#fff',
+  },
+  textArea: {
+    minHeight: 100,
+    paddingTop: 12,
+  },
+  picker: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  pickerText: {
+    fontSize: 16,
+    color: '#000',
+  },
+  placeholderText: {
+    color: '#999',
+  },
+  pickerArrow: {
+    fontSize: 12,
+    color: '#999',
+  },
+  pickerOptions: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
+  pickerOption: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  pickerOptionText: {
+    fontSize: 16,
+    color: '#000',
+  },
+  bottomSpacer: {
+    height: 40,
+  },
+});
