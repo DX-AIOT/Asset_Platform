@@ -1,5 +1,5 @@
 import { getStoredTokens, storeTokens, clearTokens, refreshToken, AuthError } from './auth';
-import type { ItemsListResponse, Item, ItemCategory } from '@/types/items';
+import type { ItemsListResponse, Item, ItemCategory, PortfolioValueResponse } from '@/types/items';
 import { getApiBaseUrl } from './api-base-url';
 
 const API_URL = getApiBaseUrl();
@@ -60,4 +60,8 @@ export async function getMyItems(params?: {
 
 export async function getItem(id: string): Promise<Item> {
   return fetchWithAuth<Item>(`/items/${id}`);
+}
+
+export async function getMyPortfolioValue(): Promise<PortfolioValueResponse> {
+  return fetchWithAuth<PortfolioValueResponse>('/items/my/value');
 }

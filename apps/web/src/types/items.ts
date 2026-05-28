@@ -41,6 +41,11 @@ export interface ItemsListResponse {
   total: number;
 }
 
+export interface PortfolioValueResponse {
+  total: number;
+  depreciated: number;
+}
+
 export const CATEGORY_LABELS: Record<ItemCategory, string> = {
   [ItemCategory.ELECTRONICS]: 'Electronics',
   [ItemCategory.MOBILE_PHONES]: 'Mobile Phones',
