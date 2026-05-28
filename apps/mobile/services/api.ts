@@ -1,7 +1,14 @@
 import axios from 'axios';
 import { authStorage } from './authStorage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+const DEFAULT_API_URL = 'http://localhost:3001/api';
+
+const normalizeApiUrl = (url?: string): string => {
+  const base = (url || DEFAULT_API_URL).trim().replace(/\/+$/, '');
+  return base.endsWith('/api') ? base : `${base}/api`;
+};
+
+const API_URL = normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL);
 
 export const api = axios.create({
   baseURL: API_URL,

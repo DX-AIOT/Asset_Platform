@@ -39,13 +39,15 @@ cp .env.example .env
 
 3. Update `.env` with your API URL:
 ```bash
-EXPO_PUBLIC_API_URL=http://your-api-url:3000
+EXPO_PUBLIC_API_URL=http://your-api-url:3001/api
 ```
 
 For local development:
-- iOS Simulator: `http://localhost:3000`
-- Android Emulator: `http://10.0.2.2:3000`
-- Physical device: `http://YOUR_LOCAL_IP:3000`
+- iOS Simulator: `http://localhost:3001/api`
+- Android Emulator: `http://10.0.2.2:3001/api`
+- Physical device: `http://YOUR_LOCAL_IP:3001/api`
+
+The mobile API client normalizes this value and automatically appends `/api` if you provide only host/port.
 
 ## Development
 
