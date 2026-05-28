@@ -1,14 +1,14 @@
 import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { BarcodeScanningResult, CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import { BarCodeScanningResult, Camera, CameraType } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function CameraScreen() {
-  const [facing, setFacing] = useState<CameraType>('back');
-  const [permission, requestPermission] = useCameraPermissions();
+  const [facing, setFacing] = useState<CameraType>(CameraType.back);
+  const [permission, requestPermission] = Camera.useCameraPermissions();
   const [didScan, setDidScan] = useState(false);
-  const cameraRef = useRef<CameraView>(null);
+  const cameraRef = useRef<Camera | null>(null);
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const router = useRouter();
   const isBarcodeMode = mode === 'barcode';
@@ -74,10 +74,10 @@ export default function CameraScreen() {
   };
 
   const toggleCameraFacing = () => {
-    setFacing((current) => (current === 'back' ? 'front' : 'back'));
+    setFacing((current) => (current === CameraType.back ? CameraType.front : CameraType.back));
   };
 
-  const handleBarcodeScanned = (event: BarcodeScanningResult) => {
+  const handleBarcodeScanned = (event: BarCodeScanningResult) => {
     if (didScan) return;
     setDidScan(true);
 
@@ -89,11 +89,11 @@ export default function CameraScreen() {
 
   return (
     <View style={styles.container}>
-      <CameraView
+      <Camera
         style={styles.camera}
-        facing={facing}
+        type={facing}
         ref={cameraRef}
-        onBarcodeScanned={isBarcodeMode ? handleBarcodeScanned : undefined}
+        onBarCodeScanned={isBarcodeMode ? handleBarcodeScanned : undefined}
       >
         <View style={styles.header}>
           <TouchableOpacity
@@ -133,7 +133,7 @@ export default function CameraScreen() {
             <Text style={styles.flipButtonText}>🔄</Text>
           </TouchableOpacity>
         </View>
-      </CameraView>
+      </Camera>
     </View>
   );
 }

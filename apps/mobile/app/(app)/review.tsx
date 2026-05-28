@@ -35,6 +35,8 @@ export default function ReviewScreen() {
   }, [imageUri]);
 
   const recognizeAsset = async () => {
+    if (!imageUri) return;
+
     try {
       setLoading(true);
       setError(null);
