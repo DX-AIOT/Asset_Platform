@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Asset Platform",
+    "slug": "asset-platform",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dxsolutions.assetplatform"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.dxsolutions.assetplatform"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "assetplatform",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ]
+  }
+}
