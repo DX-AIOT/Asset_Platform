@@ -1,6 +1,7 @@
 import type { LoginCredentials, RegisterCredentials, AuthResponse, User } from '@/types/auth';
+import { getApiBaseUrl } from './api-base-url';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = getApiBaseUrl();
 
 export class AuthError extends Error {
   constructor(message: string, public status?: number) {

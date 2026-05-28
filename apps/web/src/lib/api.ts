@@ -1,7 +1,8 @@
 import { getStoredTokens, storeTokens, clearTokens, refreshToken, AuthError } from './auth';
 import type { ItemsListResponse, Item, ItemCategory } from '@/types/items';
+import { getApiBaseUrl } from './api-base-url';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = getApiBaseUrl();
 
 async function fetchWithAuth<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const tokens = getStoredTokens();
