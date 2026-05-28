@@ -15,7 +15,7 @@ import {
   type ColumnFiltersState,
   type RowSelectionState,
 } from '@tanstack/react-table';
-import { ChevronUp, ChevronDown, ChevronsUpDown, Search, ChevronLeft, ChevronRight, Package } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronsUpDown, Search, ChevronLeft, ChevronRight, Package, Download } from 'lucide-react';
 import { type Item, ItemCategory, CATEGORY_LABELS } from '@/types/items';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,18 @@ interface AssetTableProps {
   loading?: boolean;
 }
 
+type ExportRow = {
+  name: string;
+  brand: string;
+  model: string;
+  category: string;
+  purchasePrice: string;
+  purchaseDate: string;
+  location: string;
+  warrantyExpiryDate: string;
+  condition: string;
+};
+
 function formatCurrency(value: number | null): string {
   if (value === null) return '—';
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
@@ -37,6 +49,56 @@ function formatCurrency(value: number | null): string {
 function formatDate(value: string | null): string {
   if (!value) return '—';
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(new Date(value));
+}
+
+function toExportRows(items: Item[]): ExportRow[] {
+  return items.map((item) => ({
+    name: item.name,
+    brand: item.brand ?? '',
+    model: item.model ?? '',
+    category: CATEGORY_LABELS[item.category],
+    purchasePrice: item.purchasePrice === null ? '' : String(item.purchasePrice),
+    purchaseDate: item.purchaseDate ?? '',
+    location: item.location ?? '',
+    warrantyExpiryDate: item.warrantyExpiry ?? '',
+    condition: item.condition,
+  }));
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportAsCsv(rows: ExportRow[], filename: string): void {
+  const headers = Object.keys(rows[0] ?? {}) as Array<keyof ExportRow>;
+  const csv = [
+    headers.join(','),
+    ...rows.map((row) =>
+      headers
+        .map((header) => `"${String(row[header]).replace(/"/g, '""')}"`)
+        .join(',')
+    ),
+  ].join('\n');
+  downloadBlob(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' }), filename);
+}
+
+async function exportAsExcel(rows: ExportRow[], filename: string): Promise<void> {
+  const XLSX = await import('xlsx');
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Assets');
+  const bytes = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+  downloadBlob(
+    new Blob([bytes], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }),
+    filename
+  );
 }
 
 function ThumbnailCell({ photos, name }: { photos: string[]; name: string }) {
@@ -222,6 +284,9 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
   });
 
   const selectedCount = Object.keys(rowSelection).length;
+  const exportItems = table.getSelectedRowModel().rows.map((row) => row.original);
+  const exportSource = exportItems.length > 0 ? exportItems : filteredItems;
+  const exportRows = toExportRows(exportSource);
 
   const handleRowClick = useCallback(
     (itemId: string) => {
@@ -237,6 +302,16 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
       </div>
     );
   }
+
+  const handleExportCsv = (): void => {
+    if (exportRows.length === 0) return;
+    exportAsCsv(exportRows, `assets-${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  const handleExportExcel = async (): Promise<void> => {
+    if (exportRows.length === 0) return;
+    await exportAsExcel(exportRows, `assets-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   return (
     <div className="space-y-4">
@@ -283,6 +358,16 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
             </Button>
           </div>
         )}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={exportRows.length === 0}>
+            <Download className="mr-1.5 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={exportRows.length === 0}>
+            <Download className="mr-1.5 h-4 w-4" />
+            Export Excel
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
