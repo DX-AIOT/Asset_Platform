@@ -210,11 +210,10 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
   const table = useReactTable({
     data: filteredItems,
     columns,
-    state: { sorting, columnFilters, rowSelection, globalFilter },
+    state: { sorting, columnFilters, rowSelection },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
-    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
