@@ -107,27 +107,6 @@ jobs:
           echo "=== API ===" && docker compose logs api --tail 50
           echo "=== POSTGRES ===" && docker compose logs postgres --tail 20
 
-      - name: Notify Paperclip on failure
-        if: failure()
-        env:
-          PAPERCLIP_API_URL: https://paperclip.aiotso.net
-          PAPERCLIP_TOKEN: ${{ secrets.PAPERCLIP_BOARD_TOKEN }}
-          COMPANY_ID: ec272d4a-6b74-4fb9-8300-4563cfcf9340
-          PROJECT_ID: c008a6be-10d0-4f84-a641-c17fa79bfdcc
-          QADEVOPS_ID: 6202c369-97b1-4849-8751-b8f77f71b9bd
-        run: |
-          curl -s -X POST "$PAPERCLIP_API_URL/api/companies/$COMPANY_ID/issues" \
-            -H "Authorization: Bearer $PAPERCLIP_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"title\": \"CI FAIL: Integration test failed on dev (commit ${GITHUB_SHA::8})\",
-              \"description\": \"## CI Integration Test Failed\\n\\n**Branch:** $GITHUB_REF_NAME\\n**Commit:** $GITHUB_SHA\\n**Run:** https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\\n\\nDocker Compose full-stack test failed. Check the run logs for details. Fix and push to dev again.\",
-              \"priority\": \"critical\",
-              \"status\": \"todo\",
-              \"assigneeAgentId\": \"$QADEVOPS_ID\",
-              \"projectId\": \"$PROJECT_ID\"
-            }"
-
       - name: Cleanup
         if: always()
         run: docker compose down -v
