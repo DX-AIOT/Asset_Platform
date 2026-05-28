@@ -1,0 +1,114 @@
+name: Deploy Backend to AWS
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'apps/api/**'
+      - 'packages/shared/**'
+      - '.github/workflows/deploy-backend.yml'
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=@dx-aiot/shared
+
+      - name: Build API
+        run: npm run build --workspace=@dx-aiot/api
+        env:
+          NODE_ENV: production
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "env_name=prod" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "env_name=staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to AWS Elastic Beanstalk
+        run: |
+          # Package the application
+          cd apps/api
+          zip -r deploy.zip . -x "*.git*" "node_modules/*" "coverage/*"
+
+          # Upload to S3
+          aws s3 cp deploy.zip s3://${{ secrets.AWS_EB_BUCKET }}/api-${{ steps.env.outputs.env_name }}-${{ github.sha }}.zip
+
+          # Create application version
+          aws elasticbeanstalk create-application-version \
+            --application-name dx-aiot-api \
+            --version-label ${{ steps.env.outputs.env_name }}-${{ github.sha }} \
+            --source-bundle S3Bucket="${{ secrets.AWS_EB_BUCKET }}",S3Key="api-${{ steps.env.outputs.env_name }}-${{ github.sha }}.zip" \
+            --description "Deploy from commit ${{ github.sha }}"
+
+          # Update environment
+          aws elasticbeanstalk update-environment \
+            --application-name dx-aiot-api \
+            --environment-name dx-aiot-api-${{ steps.env.outputs.env_name }} \
+            --version-label ${{ steps.env.outputs.env_name }}-${{ github.sha }}
+
+          # Wait for deployment
+          aws elasticbeanstalk wait environment-updated \
+            --application-name dx-aiot-api \
+            --environment-name dx-aiot-api-${{ steps.env.outputs.env_name }}
+
+      - name: Health check
+        run: |
+          ENDPOINT=${{ secrets.AWS_API_ENDPOINT_STAGING }}
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ENDPOINT=${{ secrets.AWS_API_ENDPOINT_PROD }}
+          fi
+
+          echo "Checking health at: $ENDPOINT/health"
+
+          for i in {1..5}; do
+            if curl -f -s "$ENDPOINT/health" > /dev/null; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+
+          echo "❌ Health check failed after 5 attempts"
+          exit 1
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "### 🚀 Backend Deployment Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ steps.env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
