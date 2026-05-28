@@ -12,6 +12,14 @@ React Native mobile app cho Asset Platform (iOS & Android).
   - Token refresh mechanism
   - Logout functionality
 
+- **Manual Item Entry**
+  - Add items manually when AI doesn't recognize
+  - Form fields: name, brand, model, category, serial number, purchase date/price, location, notes
+  - Multiple photo support (camera or gallery)
+  - Category picker (Electronics, Mobile Phones, Laptops, Vehicles, Furniture, Appliances, Other)
+  - Location picker (Living Room, Bedroom, Kitchen, Office, Garage, Storage, Other)
+  - Photo management (add/remove multiple photos)
+
 - **Navigation**
   - Auth stack (Login, Register)
   - Protected app stack

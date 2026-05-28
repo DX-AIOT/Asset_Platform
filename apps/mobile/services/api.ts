@@ -93,3 +93,59 @@ export const authApi = {
   logout: () =>
     api.post('/auth/logout'),
 };
+
+export interface CreateItemData {
+  name: string;
+  brand?: string;
+  model?: string;
+  category: string;
+  serial?: string;
+  purchaseDate?: string;
+  purchasePrice?: number;
+  condition?: string;
+  location?: string;
+  photos?: string[];
+  notes?: string;
+}
+
+export interface ItemResponse {
+  id: string;
+  name: string;
+  brand?: string;
+  model?: string;
+  category: string;
+  serial?: string;
+  purchaseDate?: string;
+  purchasePrice?: number;
+  condition: string;
+  location?: string;
+  photos?: string[];
+  notes?: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const itemsApi = {
+  create: (data: CreateItemData) =>
+    api.post<ItemResponse>('/items', data),
+
+  getAll: () =>
+    api.get<ItemResponse[]>('/items'),
+
+  getById: (id: string) =>
+    api.get<ItemResponse>(`/items/${id}`),
+
+  update: (id: string, data: Partial<CreateItemData>) =>
+    api.patch<ItemResponse>(`/items/${id}`, data),
+
+  delete: (id: string) =>
+    api.delete(`/items/${id}`),
+
+  uploadPhoto: (formData: FormData) =>
+    api.post<{ url: string }>('/items/upload-photo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+};

@@ -17,7 +17,14 @@ export default function AppLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Asset Platform',
+          title: 'Home',
+          headerLargeTitle: true,
+        }}
+      />
+      <Stack.Screen
+        name="inventory"
+        options={{
+          title: 'My Assets',
           headerLargeTitle: true,
         }}
       />
