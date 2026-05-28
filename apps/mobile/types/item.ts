@@ -30,6 +30,7 @@ export interface Item {
   photos?: string[];
   warrantyExpiry?: string;
   notes?: string;
+  depreciatedValue?: number;
   userId: string;
   createdAt: string;
   updatedAt: string;
