@@ -3,6 +3,7 @@
 import { useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import PasswordStrength from '@/components/PasswordStrength';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -127,6 +128,7 @@ export default function RegisterPage() {
                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="At least 6 characters"
               />
+              <PasswordStrength password={password} />
               <p className="mt-1 text-xs text-gray-500">Minimum 6 characters</p>
             </div>
           </div>
