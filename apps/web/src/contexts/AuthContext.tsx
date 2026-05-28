@@ -8,10 +8,12 @@ import * as authApi from '@/lib/auth';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  error: string | null;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,6 +21,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   // Initialize session on mount
@@ -56,10 +59,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await authApi.refreshToken(tokens.refreshToken);
       authApi.storeTokens(response.accessToken, response.refreshToken);
       setUser(response.user);
+      setError(null);
     } catch (error) {
       authApi.clearTokens();
       setUser(null);
+      setError('Session expired, please login again');
     }
+  };
+
+  const clearError = () => {
+    setError(null);
   };
 
   const setCookie = (name: string, value: string, days: number = 7) => {
@@ -102,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshSession }}>
+    <AuthContext.Provider value={{ user, loading, error, login, register, logout, refreshSession, clearError }}>
       {children}
     </AuthContext.Provider>
   );
