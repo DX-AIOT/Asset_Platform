@@ -43,6 +43,7 @@ services:
     build:
       context: .
       dockerfile: ./apps/api/Dockerfile
+      target: dev
     container_name: asset_platform_api
     environment:
       NODE_ENV: development
@@ -68,7 +69,7 @@ services:
         condition: service_healthy
     networks:
       - asset_network
-    command: npm run dev
+    command: npm run dev --workspace=@dx-aiot/api
 
 volumes:
   postgres_data:
