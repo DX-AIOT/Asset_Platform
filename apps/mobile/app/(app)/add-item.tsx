@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,15 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { itemsApi } from '../../services/api';
+import { aiApi } from '../../services/aiApi';
 import { ItemCategory, CATEGORY_LABELS, LOCATION_OPTIONS } from '../../types/item';
 
 export default function AddItem() {
   const router = useRouter();
+  const { scannedBarcode } = useLocalSearchParams<{ scannedBarcode?: string }>();
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -34,6 +36,61 @@ export default function AddItem() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [lookupLoading, setLookupLoading] = useState(false);
+
+  const mapProductCategoryToItemCategory = (rawCategory: string): ItemCategory => {
+    const normalized = rawCategory.toLowerCase();
+    if (normalized.includes('audio')) return ItemCategory.ELECTRONICS;
+    if (normalized.includes('computer') || normalized.includes('peripheral')) return ItemCategory.ELECTRONICS;
+    return ItemCategory.OTHER;
+  };
+
+  useEffect(() => {
+    const barcode = scannedBarcode?.trim();
+    if (!barcode) return;
+
+    const runLookup = async () => {
+      setLookupLoading(true);
+
+      try {
+        const result = await aiApi.lookupBarcode(barcode);
+
+        setFormData((current) => {
+          if (!result.found || !result.product) {
+            return {
+              ...current,
+              serial: result.barcode,
+            };
+          }
+
+          return {
+            ...current,
+            name: current.name || result.product.name,
+            brand: current.brand || result.product.brand,
+            category:
+              current.category === ItemCategory.OTHER
+                ? mapProductCategoryToItemCategory(result.product.category)
+                : current.category,
+            serial: current.serial || result.product.barcode,
+          };
+        });
+
+        if (!result.found) {
+          Alert.alert('Barcode saved', 'No product info found. Barcode has been saved in Serial Number.');
+        }
+      } catch {
+        setFormData((current) => ({
+          ...current,
+          serial: current.serial || barcode,
+        }));
+        Alert.alert('Lookup failed', 'Could not fetch product info. Barcode was saved in Serial Number.');
+      } finally {
+        setLookupLoading(false);
+      }
+    };
+
+    void runLookup();
+  }, [scannedBarcode]);
 
   const requestPermissions = async () => {
     if (Platform.OS !== 'web') {
@@ -152,6 +209,22 @@ export default function AddItem() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.scanBarcodeButton}
+            onPress={() =>
+              router.push({
+                pathname: '/(app)/camera',
+                params: { mode: 'barcode' },
+              })
+            }
+          >
+            <Text style={styles.scanBarcodeText}>
+              {lookupLoading ? 'Looking up barcode...' : 'Scan Barcode / QR'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Photos Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos</Text>
@@ -377,6 +450,18 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
+  },
+  scanBarcodeButton: {
+    backgroundColor: '#111827',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  scanBarcodeText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 16,

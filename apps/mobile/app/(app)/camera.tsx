@@ -1,14 +1,17 @@
 import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import { BarcodeScanningResult, CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function CameraScreen() {
   const [facing, setFacing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
+  const [didScan, setDidScan] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
   const router = useRouter();
+  const isBarcodeMode = mode === 'barcode';
 
   if (!permission) {
     return (
@@ -74,9 +77,24 @@ export default function CameraScreen() {
     setFacing((current) => (current === 'back' ? 'front' : 'back'));
   };
 
+  const handleBarcodeScanned = (event: BarcodeScanningResult) => {
+    if (didScan) return;
+    setDidScan(true);
+
+    router.replace({
+      pathname: '/(app)/add-item',
+      params: { scannedBarcode: event.data },
+    });
+  };
+
   return (
     <View style={styles.container}>
-      <CameraView style={styles.camera} facing={facing} ref={cameraRef}>
+      <CameraView
+        style={styles.camera}
+        facing={facing}
+        ref={cameraRef}
+        onBarcodeScanned={isBarcodeMode ? handleBarcodeScanned : undefined}
+      >
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.headerButton}
@@ -84,25 +102,29 @@ export default function CameraScreen() {
           >
             <Text style={styles.headerButtonText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Scan Asset</Text>
+          <Text style={styles.headerTitle}>{isBarcodeMode ? 'Scan Barcode/QR' : 'Scan Asset'}</Text>
           <View style={styles.headerButton} />
         </View>
 
         <View style={styles.overlay}>
           <View style={styles.scanFrame} />
           <Text style={styles.instruction}>
-            Point camera at your item
+            {isBarcodeMode ? 'Align barcode or QR code inside frame' : 'Point camera at your item'}
           </Text>
         </View>
 
         <View style={styles.controls}>
+          {!isBarcodeMode && (
           <TouchableOpacity style={styles.galleryButton} onPress={pickImage}>
             <Text style={styles.galleryButtonText}>📁</Text>
           </TouchableOpacity>
+          )}
 
-          <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-            <View style={styles.captureButtonInner} />
-          </TouchableOpacity>
+          {!isBarcodeMode && (
+            <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+              <View style={styles.captureButtonInner} />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.flipButton}
