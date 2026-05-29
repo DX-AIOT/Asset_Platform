@@ -45,6 +45,10 @@ export class User {
   @Column({ type: 'varchar', nullable: true })
   fcmToken: string;
 
+  /** AES-256-GCM encrypted Expo push token. Decrypt before sending. */
+  @Column({ type: 'varchar', nullable: true })
+  pushToken: string;
+
   @Column({ default: true })
   isActive: boolean;
 
