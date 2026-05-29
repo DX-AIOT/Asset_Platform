@@ -38,18 +38,24 @@ export default function Inventory() {
   const [selectedCategory, setSelectedCategory] = useState<ItemCategory | undefined>();
   const [totalValue, setTotalValue] = useState<number>(0);
   const [exportingReport, setExportingReport] = useState(false);
+  const [showingCachedData, setShowingCachedData] = useState(false);
+  const [cachedAt, setCachedAt] = useState<string | undefined>();
 
   const fetchItems = async () => {
     try {
-      const [itemsResponse, valueResponse] = await Promise.all([
-        itemsApi.getMyItems({ category: selectedCategory }),
-        itemsApi.getTotalValue(),
-      ]);
-
-      setItems(itemsResponse.data.items);
-      setTotalValue(valueResponse.data.total);
+      const snapshot = await itemsApi.getInventorySnapshot({ category: selectedCategory });
+      setItems(snapshot.items);
+      setTotalValue(snapshot.total);
+      setShowingCachedData(snapshot.fromCache);
+      setCachedAt(snapshot.cachedAt);
     } catch (error) {
       console.error('Failed to fetch items:', error);
+      setShowingCachedData(false);
+      setCachedAt(undefined);
+      Alert.alert(
+        'Unable to load assets',
+        'No network connection and no offline cache is available yet.'
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -115,6 +121,14 @@ export default function Inventory() {
           <Text style={styles.valueLabel}>Total Value</Text>
           <Text style={styles.valueAmount}>${totalValue.toLocaleString()}</Text>
         </View>
+        {showingCachedData && (
+          <View style={styles.offlineBanner}>
+            <Text style={styles.offlineBannerText}>
+              Offline mode: showing cached assets
+              {cachedAt ? ` (updated ${new Date(cachedAt).toLocaleString()})` : ''}
+            </Text>
+          </View>
+        )}
         <TouchableOpacity
           style={[styles.exportButton, exportingReport && styles.exportButtonDisabled]}
           onPress={handleExportInsuranceReport}
@@ -230,6 +244,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  offlineBanner: {
+    marginTop: 10,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  offlineBannerText: {
+    color: '#92400E',
+    fontSize: 12,
+    fontWeight: '500',
   },
   filterContainer: {
     backgroundColor: '#fff',
