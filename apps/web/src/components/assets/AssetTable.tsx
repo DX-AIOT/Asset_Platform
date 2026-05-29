@@ -24,6 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getInsuranceReportPdf } from '@/lib/api';
+import { StateCard } from '@/components/ui/state-card';
 
 interface AssetTableProps {
   items: Item[];
@@ -133,6 +134,12 @@ function SortIcon({ sorted }: { sorted: false | 'asc' | 'desc' }) {
   return <ChevronsUpDown className="h-3.5 w-3.5 text-gray-400" />;
 }
 
+/**
+ * Inventory table with client-side filtering/sorting and export tools.
+ *
+ * Filtering intentionally happens before the TanStack table model so export
+ * actions and selection always reflect the same visible data set.
+ */
 export function AssetTable({ items, loading = false }: AssetTableProps) {
   const router = useRouter();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -150,7 +157,10 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
     return Array.from(locs).sort();
   }, [items]);
 
-  // Apply category + location + global search filtering client-side
+  /**
+   * Applies stacked client-side filters.
+   * Order matters for performance: cheap exact checks run before text search.
+   */
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
@@ -300,8 +310,12 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+      <div className="py-8">
+        <StateCard
+          variant="loading"
+          title="Loading asset list"
+          description="Applying your latest filters and syncing records."
+        />
       </div>
     );
   }
@@ -434,9 +448,17 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
                 <tr>
                   <td
                     colSpan={columns.length}
-                    className="px-4 py-12 text-center text-sm text-gray-500"
+                    className="px-4 py-8"
                   >
-                    No assets found
+                    <StateCard
+                      variant="empty"
+                      title={items.length === 0 ? 'No assets yet' : 'No assets match these filters'}
+                      description={
+                        items.length === 0
+                          ? 'Add your first asset to start tracking inventory and depreciation.'
+                          : 'Try broadening the search text, category, or location filters.'
+                      }
+                    />
                   </td>
                 </tr>
               ) : (

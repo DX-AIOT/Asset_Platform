@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getInsuranceReportPdf, getMyItems, getMyPortfolioValue } from '@/lib/api';
 import { CATEGORY_LABELS, type ItemCategory } from '@/types/items';
 import { Button } from '@/components/ui/button';
+import { StateCard } from '@/components/ui/state-card';
 
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -29,6 +30,10 @@ function formatDateTime(date: Date): string {
   }).format(date);
 }
 
+/**
+ * Reports page focused on insurance PDF generation.
+ * Empty `selectedCategories` means "all categories" by API contract.
+ */
 export default function ReportsPage() {
   const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
@@ -37,6 +42,7 @@ export default function ReportsPage() {
   const [portfolioValue, setPortfolioValue] = useState(0);
   const [lastGeneratedAt, setLastGeneratedAt] = useState<Date | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoadingMetadata, setIsLoadingMetadata] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,6 +50,8 @@ export default function ReportsPage() {
   }, [authLoading, user, router]);
 
   const fetchMetadata = useCallback(async () => {
+    setIsLoadingMetadata(true);
+    setError(null);
     try {
       const [itemsResult, valueResult] = await Promise.all([getMyItems(), getMyPortfolioValue()]);
       const uniqueCategories = Array.from(new Set(itemsResult.items.map((item) => item.category)));
@@ -51,6 +59,8 @@ export default function ReportsPage() {
       setPortfolioValue(valueResult.depreciated);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load report metadata');
+    } finally {
+      setIsLoadingMetadata(false);
     }
   }, []);
 
@@ -74,6 +84,10 @@ export default function ReportsPage() {
     );
   };
 
+  /**
+   * Requests a PDF blob from the API then triggers a browser download.
+   * Keeps generation state local to avoid blocking other page interactions.
+   */
   const handleGeneratePdf = async (): Promise<void> => {
     setIsGenerating(true);
     setError(null);
@@ -139,32 +153,55 @@ export default function ReportsPage() {
 
           <div className="mt-6">
             <p className="text-sm font-medium text-gray-800 mb-2">Category filter (optional)</p>
-            <div className="flex flex-wrap gap-2">
-              {availableCategories.map((category) => {
-                const selected = selectedCategories.includes(category);
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => handleToggleCategory(category)}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                      selected
-                        ? 'border-blue-600 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {CATEGORY_LABELS[category]}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-2 text-xs text-gray-500">Using: {selectedSummary}</p>
+            {isLoadingMetadata ? (
+              <StateCard
+                variant="loading"
+                title="Loading report metadata"
+                description="Fetching categories and current portfolio value."
+              />
+            ) : availableCategories.length === 0 ? (
+              <StateCard
+                variant="empty"
+                title="No reportable assets yet"
+                description="Add at least one asset in your inventory before generating filtered reports."
+              />
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {availableCategories.map((category) => {
+                    const selected = selectedCategories.includes(category);
+                    return (
+                      <button
+                        key={category}
+                        type="button"
+                        onClick={() => handleToggleCategory(category)}
+                        className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                          selected
+                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                            : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {CATEGORY_LABELS[category]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-gray-500">Using: {selectedSummary}</p>
+              </>
+            )}
           </div>
 
           {error && (
-            <div className="mt-4 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>{error}</span>
+            <div className="mt-4">
+              <StateCard
+                variant="error"
+                title="Report action failed"
+                description={error}
+                actionLabel="Retry metadata load"
+                onAction={() => {
+                  void fetchMetadata();
+                }}
+              />
             </div>
           )}
         </section>

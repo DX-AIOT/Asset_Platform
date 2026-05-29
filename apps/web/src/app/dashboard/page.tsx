@@ -113,6 +113,10 @@ export default function DashboardPage() {
 
   const sparklineItems = useMemo(() => items.slice(0, 6), [items]);
 
+  /**
+   * Loads per-item depreciation data for the sparkline cards.
+   * `Promise.allSettled` keeps the widget resilient when one request fails.
+   */
   useEffect(() => {
     if (sparklineItems.length === 0) {
       setDepreciationByItemId({});
