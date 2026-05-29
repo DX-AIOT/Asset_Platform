@@ -5,13 +5,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getItem } from '@/lib/api';
-import type { Item } from '@/types/items';
+import { getItem, getItemPriceHistory } from '@/lib/api';
+import type { Item, PriceHistoryResponse } from '@/types/items';
 import { CATEGORY_LABELS, CONDITION_LABELS } from '@/types/items';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Package } from 'lucide-react';
 import { StateCard } from '@/components/ui/state-card';
+import { PriceHistoryChart } from '@/components/ui/price-history-chart';
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -37,6 +38,7 @@ export default function AssetDetailPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const [item, setItem] = useState<Item | null>(null);
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,8 +50,11 @@ export default function AssetDetailPage() {
     if (!user || !id) return;
     setLoading(true);
     setError(null);
-    getItem(id)
-      .then(setItem)
+    Promise.all([getItem(id), getItemPriceHistory(id).catch(() => null)])
+      .then(([fetchedItem, history]) => {
+        setItem(fetchedItem);
+        setPriceHistory(history);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load asset'))
       .finally(() => setLoading(false));
   }, [user, id]);
@@ -157,6 +162,14 @@ export default function AssetDetailPage() {
               <DetailRow label="Warranty Expiry" value={formatDate(item.warrantyExpiry)} />
               {item.notes && <DetailRow label="Notes" value={<span className="whitespace-pre-wrap">{item.notes}</span>} />}
             </div>
+
+            {/* Price History */}
+            {priceHistory && (
+              <div className="p-6 border-t border-gray-100">
+                <h3 className="text-sm font-medium text-gray-700 mb-4">Market Value History</h3>
+                <PriceHistoryChart data={priceHistory} />
+              </div>
+            )}
 
             {/* Photos */}
             {item.photos && item.photos.length > 1 && (

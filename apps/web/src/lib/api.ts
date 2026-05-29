@@ -5,6 +5,7 @@ import type {
   ItemCategory,
   ItemDepreciationResponse,
   PortfolioValueResponse,
+  PriceHistoryResponse,
 } from '@/types/items';
 import { getApiBaseUrl } from './api-base-url';
 
@@ -87,6 +88,10 @@ export async function getMyPortfolioValue(): Promise<PortfolioValueResponse> {
 
 export async function getItemDepreciation(id: string): Promise<ItemDepreciationResponse> {
   return fetchWithAuth<ItemDepreciationResponse>(`/items/${id}/depreciation`);
+}
+
+export async function getItemPriceHistory(id: string): Promise<PriceHistoryResponse> {
+  return fetchWithAuth<PriceHistoryResponse>(`/items/${id}/price-history`);
 }
 
 export async function getInsuranceReportPdf(categoryIds?: string[]): Promise<Blob> {

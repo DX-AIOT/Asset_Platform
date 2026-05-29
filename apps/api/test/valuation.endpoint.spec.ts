@@ -6,6 +6,7 @@ import { MarketValuationService } from '../src/ai/market-valuation.service';
 import { ValuationCacheService } from '../src/ai/valuation-cache.service';
 import { VisionRecognitionService } from '../src/ai/vision-recognition.service';
 import { BarcodeLookupService } from '../src/ai/barcode-lookup.service';
+import { ConditionAssessmentService } from '../src/ai/condition-assessment.service';
 import { ValuationRequestDto } from '../src/ai/dto/valuation.dto';
 
 /**
@@ -33,6 +34,10 @@ describe('POST /ai/valuation (integration)', () => {
         {
           provide: VisionRecognitionService,
           useValue: { recognizeFromBase64: jest.fn() },
+        },
+        {
+          provide: ConditionAssessmentService,
+          useValue: { assess: jest.fn() },
         },
       ],
     }).compile();

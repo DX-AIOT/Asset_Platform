@@ -69,6 +69,33 @@ export const CATEGORY_LABELS: Record<ItemCategory, string> = {
   [ItemCategory.OTHER]: 'Other',
 };
 
+export type PriceHistorySource = 'manual' | 'ai' | 'market';
+export type TrendDirection = 'up' | 'flat' | 'down';
+
+export interface PriceHistoryPoint {
+  id: string;
+  estimatedValue: number;
+  currency: string;
+  source: PriceHistorySource;
+  recordedAt: string;
+}
+
+export interface TrendWindow {
+  windowDays: 30 | 90 | 365;
+  direction: TrendDirection;
+  percentChange: number | null;
+  fromValue: number | null;
+  toValue: number | null;
+}
+
+export interface PriceHistoryResponse {
+  itemId: string;
+  currency: string;
+  points: PriceHistoryPoint[];
+  latestValue: number | null;
+  trends: TrendWindow[];
+}
+
 export const CONDITION_LABELS: Record<ItemCondition, string> = {
   [ItemCondition.NEW]: 'New',
   [ItemCondition.LIKE_NEW]: 'Like New',
