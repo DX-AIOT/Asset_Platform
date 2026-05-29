@@ -120,7 +120,7 @@ export default function AddItem() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setPhotos([...photos, result.assets[0].uri]);
+      setPhotos((current) => [...current, result.assets[0].uri]);
     }
   };
 
@@ -137,12 +137,25 @@ export default function AddItem() {
 
     if (!result.canceled) {
       const newPhotos = result.assets.map(asset => asset.uri);
-      setPhotos([...photos, ...newPhotos]);
+      setPhotos((current) => [...current, ...newPhotos]);
     }
   };
 
   const removePhoto = (index: number) => {
-    setPhotos(photos.filter((_: string, i: number) => i !== index));
+    setPhotos((current) => current.filter((_: string, i: number) => i !== index));
+  };
+
+  const movePhoto = (index: number, direction: 'left' | 'right') => {
+    setPhotos((current) => {
+      const targetIndex = direction === 'left' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return current;
+      }
+
+      const reordered = [...current];
+      [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+      return reordered;
+    });
   };
 
   const showPhotoOptions = () => {
@@ -232,6 +245,25 @@ export default function AddItem() {
             {photos.map((uri: string, index: number) => (
               <View key={index} style={styles.photoWrapper}>
                 <Image source={{ uri }} style={styles.photo} />
+                <View style={styles.reorderControls}>
+                  <TouchableOpacity
+                    style={[styles.reorderButton, index === 0 && styles.reorderButtonDisabled]}
+                    onPress={() => movePhoto(index, 'left')}
+                    disabled={index === 0}
+                  >
+                    <Text style={styles.reorderButtonText}>←</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.reorderButton,
+                      index === photos.length - 1 && styles.reorderButtonDisabled,
+                    ]}
+                    onPress={() => movePhoto(index, 'right')}
+                    disabled={index === photos.length - 1}
+                  >
+                    <Text style={styles.reorderButtonText}>→</Text>
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity
                   style={styles.removePhotoButton}
                   onPress={() => removePhoto(index)}
@@ -480,6 +512,30 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 8,
+  },
+  reorderControls: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    right: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  reorderButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(17, 24, 39, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reorderButtonDisabled: {
+    opacity: 0.35,
+  },
+  reorderButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   removePhotoButton: {
     position: 'absolute',
