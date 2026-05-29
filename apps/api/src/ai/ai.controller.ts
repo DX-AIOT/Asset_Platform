@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -34,6 +35,7 @@ export class AiController {
   ) {}
 
   @Post('recognize')
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({
     summary: 'Identify an asset from a base64-encoded image',
     description:

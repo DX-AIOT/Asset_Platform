@@ -23,6 +23,11 @@ export class ReportsService {
     private usersRepository: Repository<User>,
   ) {}
 
+  /**
+   * Fetches the user's assets (optionally filtered to specific categories),
+   * computes totals, then delegates to buildPdf for layout rendering.
+   * The returned Buffer is ready to stream as `application/pdf`.
+   */
   async generateInsurancePdf(
     userId: string,
     categoryIds?: string[],
@@ -53,6 +58,12 @@ export class ReportsService {
     return this.buildPdf(user, items, totalPurchase, totalCurrent);
   }
 
+  /**
+   * Renders the PDF using pdfkit in streaming mode:
+   * cover page → one detail page per asset → summary table page.
+   * Pages are buffered (`bufferPages: true`) so the total-pages footer can be
+   * stamped in a second pass after all content is laid out.
+   */
   private buildPdf(
     user: User | null,
     items: Item[],

@@ -1,10 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RemindersService } from './reminders.service';
 import { FirebaseService } from './firebase.service';
+import { ExpoNotificationsService } from './expo-notifications.service';
 import { Notification } from './entities/notification.entity';
+import { decryptToken } from '../common/crypto.util';
 
 const DAYS_AHEAD = 3;
 
@@ -15,8 +18,10 @@ export class MaintenanceJobService {
   constructor(
     private readonly remindersService: RemindersService,
     private readonly firebaseService: FirebaseService,
+    private readonly expoNotifications: ExpoNotificationsService,
     @InjectRepository(Notification)
     private readonly notificationsRepo: Repository<Notification>,
+    private readonly config: ConfigService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_8AM)
@@ -25,6 +30,8 @@ export class MaintenanceJobService {
 
     const reminders = await this.remindersService.findUpcomingWithUsers(DAYS_AHEAD);
     this.logger.log(`Found ${reminders.length} upcoming reminders`);
+
+    const encryptionKey = this.config.get<string>('PUSH_TOKEN_ENCRYPTION_KEY');
 
     for (const reminder of reminders) {
       const user = reminder.item?.user;
@@ -48,16 +55,21 @@ export class MaintenanceJobService {
         }),
       );
 
-      if (user.fcmToken) {
-        await this.firebaseService.sendToDevice(user.fcmToken, {
-          title,
-          body,
-          data: {
-            reminderId: reminder.id,
-            itemId: reminder.itemId,
-            itemName: reminder.item.name,
-          },
-        });
+      const pushData = {
+        reminderId: reminder.id,
+        itemId: reminder.itemId,
+        itemName: reminder.item.name,
+      };
+
+      if (user.pushToken && encryptionKey?.length === 64) {
+        try {
+          const plainToken = decryptToken(user.pushToken, encryptionKey);
+          await this.expoNotifications.sendToDevice(plainToken, { title, body, data: pushData });
+        } catch (err) {
+          this.logger.error(`Failed to decrypt/send Expo push for user ${user.id}`, err);
+        }
+      } else if (user.fcmToken) {
+        await this.firebaseService.sendToDevice(user.fcmToken, { title, body, data: pushData });
       }
     }
 

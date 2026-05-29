@@ -88,6 +88,12 @@ export class ItemsService {
     };
   }
 
+  /**
+   * Builds a year-by-year depreciation schedule using the declining-balance formula:
+   *   value(year) = purchasePrice × (1 − rate/100)^yearsElapsed
+   *
+   * Returns null currentValue/percentLost when the item has no purchase data.
+   */
   async getDepreciation(
     id: string,
     userId: string,
@@ -125,6 +131,11 @@ export class ItemsService {
     return { currentValue, percentLost, annualRatePercent: rate, valueHistory };
   }
 
+  /**
+   * Returns the annual depreciation rate to use.
+   * Prefers an item-level override; falls back to CATEGORY_DEFAULT_RATES,
+   * then 10% as a final catch-all.
+   */
   private effectiveRate(item: Pick<Item, 'depreciationRatePercent' | 'category'>): number {
     if (item.depreciationRatePercent != null) {
       return Number(item.depreciationRatePercent);

@@ -83,6 +83,12 @@ export class AuthService {
     };
   }
 
+  /**
+   * Validates the refresh token (JWT signature + bcrypt comparison against the stored hash),
+   * then issues a new access/refresh token pair and rotates the stored hash.
+   * Rotation means each refresh token is single-use — a stolen token can only be replayed
+   * before the legitimate client uses it first.
+   */
   async refreshTokens(refreshToken: string): Promise<AuthTokens> {
     try {
       const payload = await this.jwtService.verifyAsync(refreshToken, {
@@ -110,6 +116,13 @@ export class AuthService {
     }
   }
 
+  /**
+   * Upsert flow for Google OAuth:
+   * 1. Look up by googleId (returning user) → generate tokens.
+   * 2. If not found by googleId but email matches → link googleId to existing account.
+   * 3. If no match at all → create a new account with a random unusable password
+   *    (the user authenticates via Google, never via password).
+   */
   async googleLogin(googleUser: any): Promise<AuthResponse> {
     if (!googleUser) {
       throw new BadRequestException('No user from Google');

@@ -3,9 +3,11 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
 import { CsrfGuard } from './auth/guards/csrf.guard';
+import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 import { UsersModule } from './users/users.module';
 import { ItemsModule } from './items/items.module';
 import { SharingModule } from './sharing/sharing.module';
@@ -25,6 +27,19 @@ import { AppService } from './app.service';
       envFilePath: ['.env', '../../.env'],
     }),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            name: 'default',
+            ttl: config.get<number>('THROTTLE_GLOBAL_TTL_MS', 60_000),
+            limit: config.get<number>('THROTTLE_GLOBAL_LIMIT', 100),
+          },
+        ],
+      }),
+    }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -49,6 +64,7 @@ import { AppService } from './app.service';
   providers: [
     AppService,
     DatabaseSeedService,
+    { provide: APP_GUARD, useClass: CustomThrottlerGuard },
     { provide: APP_GUARD, useClass: CsrfGuard },
   ],
 })

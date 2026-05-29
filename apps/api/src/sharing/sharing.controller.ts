@@ -9,6 +9,14 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiCookieAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
@@ -20,17 +28,22 @@ import {
   SharedInventoryDto,
 } from './dto/sharing-response.dto';
 
+@ApiTags('sharing')
+@ApiBearerAuth('access-token')
+@ApiCookieAuth('access_token')
 @Controller('sharing')
 @UseGuards(JwtAuthGuard)
 export class SharingController {
   constructor(private readonly sharingService: SharingService) {}
 
-  /**
-   * POST /sharing/invite
-   * Send an invite to share the current user's inventory with another person.
-   */
   @Post('invite')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Invite a user to access your inventory',
+    description: 'Sends an email invite with a signed token. The recipient must visit /sharing/invites/:token/accept to activate access.',
+  })
+  @ApiResponse({ status: 201, description: 'Invite created and email dispatched.', type: InviteResponseDto })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
   async invite(
     @CurrentUser() user: any,
     @Body() dto: InviteDto,
@@ -38,32 +51,33 @@ export class SharingController {
     return this.sharingService.invite(user.id, dto);
   }
 
-  /**
-   * GET /sharing/invites/:token/accept
-   * Accept a pending share invite via the token from the email link.
-   * Public so recipients can click the link without being logged in first.
-   */
   @Get('invites/:token/accept')
   @Public()
+  @ApiOperation({
+    summary: 'Accept a share invite via emailed token',
+    description: 'Public endpoint — recipients click this link from their email. Creates the share relationship and marks the invite as active.',
+  })
+  @ApiParam({ name: 'token', description: 'Signed invite token from the email' })
+  @ApiResponse({ status: 200, description: 'Invite accepted.' })
+  @ApiResponse({ status: 404, description: 'Token not found or already used.' })
   async acceptInvite(@Param('token') token: string): Promise<{ message: string }> {
     return this.sharingService.acceptInvite(token);
   }
 
-  /**
-   * GET /sharing/members
-   * List all users who have (or have been invited to have) access to my inventory.
-   */
   @Get('members')
+  @ApiOperation({ summary: 'List users with access to your inventory' })
+  @ApiResponse({ status: 200, description: 'List of share members (pending and active).', type: [ShareMemberDto] })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
   async listMembers(@CurrentUser() user: any): Promise<ShareMemberDto[]> {
     return this.sharingService.listMembers(user.id);
   }
 
-  /**
-   * DELETE /sharing/members/:userId
-   * Revoke access for a specific user.
-   */
   @Delete('members/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Revoke inventory access for a specific user' })
+  @ApiParam({ name: 'userId', description: 'UUID of the user whose access to revoke' })
+  @ApiResponse({ status: 204, description: 'Access revoked.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
   async revokeAccess(
     @CurrentUser() user: any,
     @Param('userId') targetUserId: string,
@@ -71,11 +85,10 @@ export class SharingController {
     return this.sharingService.revokeAccess(user.id, targetUserId);
   }
 
-  /**
-   * GET /sharing/shared-with-me
-   * List inventories that other users have shared with me.
-   */
   @Get('shared-with-me')
+  @ApiOperation({ summary: 'List inventories shared with you by other users' })
+  @ApiResponse({ status: 200, description: 'List of shared inventories.', type: [SharedInventoryDto] })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
   async sharedWithMe(@CurrentUser() user: any): Promise<SharedInventoryDto[]> {
     return this.sharingService.listSharedWithMe(user.id);
   }

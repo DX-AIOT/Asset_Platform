@@ -10,6 +10,15 @@ import {
   HttpStatus,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiCookieAuth,
+  ApiBody,
+} from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -40,6 +49,7 @@ function baseCookieOptions(isProduction: boolean) {
   };
 }
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   private readonly isProduction = process.env.NODE_ENV === 'production';
@@ -63,6 +73,10 @@ export class AuthController {
 
   @Public()
   @Post('register')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'Register a new user account' })
+  @ApiResponse({ status: 201, description: 'Account created. Auth cookies + CSRF token set.' })
+  @ApiResponse({ status: 409, description: 'Email already registered.' })
   async register(@Body() registerDto: RegisterDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.register(registerDto);
     this.setAuthCookies(res, result.accessToken, result.refreshToken);
@@ -73,6 +87,10 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'Log in with email and password' })
+  @ApiResponse({ status: 200, description: 'Login successful. Auth cookies + CSRF token set.' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials or deactivated account.' })
   async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(loginDto);
     this.setAuthCookies(res, result.accessToken, result.refreshToken);
@@ -83,6 +101,15 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refresh access and refresh tokens',
+    description:
+      'Web clients send the refresh token via httpOnly cookie; mobile clients send it in the request body. ' +
+      'Cookie presence takes precedence. On success, web gets new cookies while mobile gets tokens in the response body.',
+  })
+  @ApiBody({ type: RefreshTokenDto, required: false })
+  @ApiResponse({ status: 200, description: 'Tokens refreshed.' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token.' })
   async refresh(
     @Req() req: Request,
     @Body() refreshTokenDto: RefreshTokenDto,
@@ -105,6 +132,11 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiCookieAuth('access_token')
+  @ApiOperation({ summary: 'Get the currently authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'Current user profile.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
   async getProfile(@CurrentUser() user: any) {
     return {
       id: user.id,
@@ -118,6 +150,10 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiCookieAuth('access_token')
+  @ApiOperation({ summary: 'Log out and invalidate tokens' })
+  @ApiResponse({ status: 200, description: 'Logged out. Auth cookies cleared.' })
   async logout(@CurrentUser() user: any, @Res({ passthrough: true }) res: Response) {
     await this.authService.logout(user.id);
     this.clearAuthCookies(res);
@@ -127,6 +163,10 @@ export class AuthController {
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Change password for the authenticated user' })
+  @ApiResponse({ status: 200, description: 'Password changed.' })
+  @ApiResponse({ status: 401, description: 'Current password incorrect.' })
   async changePassword(@CurrentUser() user: any, @Body() dto: ChangePasswordDto) {
     return this.authService.changePassword(user.id, dto);
   }
@@ -135,6 +175,10 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Admin: reset any user password (admin/super-admin only)' })
+  @ApiResponse({ status: 200, description: 'Password reset.' })
+  @ApiResponse({ status: 403, description: 'Insufficient role.' })
   async adminResetPassword(@Body() dto: AdminResetPasswordDto) {
     return this.authService.adminResetPassword(dto);
   }
@@ -142,6 +186,8 @@ export class AuthController {
   @Public()
   @Get('google')
   @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Initiate Google OAuth2 login flow' })
+  @ApiResponse({ status: 302, description: 'Redirects to Google consent screen.' })
   async googleAuth() {
     // Initiates Google OAuth flow
   }
@@ -149,6 +195,8 @@ export class AuthController {
   @Public()
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Google OAuth2 callback — exchanges code for session' })
+  @ApiResponse({ status: 200, description: 'OAuth login successful. Auth cookies set.' })
   async googleAuthCallback(@Req() req: any, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.googleLogin(req.user);
     this.setAuthCookies(res, result.accessToken, result.refreshToken);
