@@ -65,6 +65,12 @@ export default function AssetsPage() {
               <span className="text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-0.5">
                 Assets
               </span>
+              <Link
+                href="/dashboard/reports"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Reports
+              </Link>
             </div>
             <div className="flex items-center gap-3">
               <Link

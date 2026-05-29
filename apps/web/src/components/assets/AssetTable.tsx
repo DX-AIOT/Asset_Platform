@@ -23,6 +23,7 @@ import { Select } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getInsuranceReportPdf } from '@/lib/api';
 
 interface AssetTableProps {
   items: Item[];
@@ -140,6 +141,8 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [locationFilter, setLocationFilter] = useState('');
+  const [isExportingInsuranceReport, setIsExportingInsuranceReport] = useState(false);
+  const [insuranceReportError, setInsuranceReportError] = useState<string | null>(null);
 
   // Unique locations for filter dropdown
   const locations = useMemo(() => {
@@ -313,6 +316,22 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
     await exportAsExcel(exportRows, `assets-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  const handleExportInsuranceReport = async (): Promise<void> => {
+    setInsuranceReportError(null);
+    setIsExportingInsuranceReport(true);
+    try {
+      const categoryIds = categoryFilter !== 'all' ? [categoryFilter] : undefined;
+      const blob = await getInsuranceReportPdf(categoryIds);
+      downloadBlob(blob, `insurance-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (error: unknown) {
+      setInsuranceReportError(
+        error instanceof Error ? error.message : 'Failed to export insurance report'
+      );
+    } finally {
+      setIsExportingInsuranceReport(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -369,6 +388,25 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
           </Button>
         </div>
       </div>
+      <div className="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-gray-600">
+          Need a claim-ready summary? Export a PDF insurance report for your assets.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportInsuranceReport}
+          disabled={isExportingInsuranceReport}
+        >
+          <Download className="mr-1.5 h-4 w-4" />
+          {isExportingInsuranceReport ? 'Generating...' : 'Export Insurance Report'}
+        </Button>
+      </div>
+      {insuranceReportError && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {insuranceReportError}
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">

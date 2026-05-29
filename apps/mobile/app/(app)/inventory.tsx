@@ -8,10 +8,15 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Alert,
+  Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as FileSystem from 'expo-file-system';
+import { Buffer } from 'buffer';
 import { ItemCard } from '../../components/ItemCard';
 import { itemsApi } from '../../services/itemsApi';
+import { reportsApi } from '../../services/reportsApi';
 import { Item, ItemCategory } from '../../types/item';
 
 const CATEGORY_OPTIONS = [
@@ -32,6 +37,7 @@ export default function Inventory() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ItemCategory | undefined>();
   const [totalValue, setTotalValue] = useState<number>(0);
+  const [exportingReport, setExportingReport] = useState(false);
 
   const fetchItems = async () => {
     try {
@@ -67,6 +73,32 @@ export default function Inventory() {
     setSelectedCategory(category);
   };
 
+  const handleExportInsuranceReport = async (): Promise<void> => {
+    try {
+      setExportingReport(true);
+      const categoryIds = selectedCategory ? [selectedCategory] : undefined;
+      const response = await reportsApi.generateInsurancePdf(categoryIds);
+      const base64 = Buffer.from(response.data).toString('base64');
+
+      const fileName = `insurance-report-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      await Share.share({
+        title: 'Insurance Report',
+        message: 'Insurance report PDF is ready.',
+        url: fileUri,
+      });
+    } catch (error) {
+      console.error('Failed to export insurance report:', error);
+      Alert.alert('Export failed', 'Could not generate insurance report. Please try again.');
+    } finally {
+      setExportingReport(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -83,6 +115,15 @@ export default function Inventory() {
           <Text style={styles.valueLabel}>Total Value</Text>
           <Text style={styles.valueAmount}>${totalValue.toLocaleString()}</Text>
         </View>
+        <TouchableOpacity
+          style={[styles.exportButton, exportingReport && styles.exportButtonDisabled]}
+          onPress={handleExportInsuranceReport}
+          disabled={exportingReport}
+        >
+          <Text style={styles.exportButtonText}>
+            {exportingReport ? 'Generating report...' : 'Export Insurance Report'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -174,6 +215,21 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#007AFF',
+  },
+  exportButton: {
+    marginTop: 12,
+    backgroundColor: '#111827',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  exportButtonDisabled: {
+    opacity: 0.65,
+  },
+  exportButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   filterContainer: {
     backgroundColor: '#fff',

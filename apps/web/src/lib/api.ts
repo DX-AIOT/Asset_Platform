@@ -75,3 +75,41 @@ export async function getMyPortfolioValue(): Promise<PortfolioValueResponse> {
 export async function getItemDepreciation(id: string): Promise<ItemDepreciationResponse> {
   return fetchWithAuth<ItemDepreciationResponse>(`/items/${id}/depreciation`);
 }
+
+export async function getInsuranceReportPdf(categoryIds?: string[]): Promise<Blob> {
+  const tokens = getStoredTokens();
+  if (!tokens) throw new AuthError('Not authenticated', 401);
+
+  const query = new URLSearchParams({ format: 'pdf' });
+  if (categoryIds && categoryIds.length > 0) {
+    query.set('categoryIds', categoryIds.join(','));
+  }
+
+  const endpoint = `/reports/insurance?${query.toString()}`;
+
+  const fetchReport = async (accessToken: string): Promise<Response> =>
+    fetch(`${API_URL}${endpoint}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+  let response = await fetchReport(tokens.accessToken);
+
+  if (response.status === 401) {
+    try {
+      const refreshed = await refreshToken(tokens.refreshToken);
+      storeTokens(refreshed.accessToken, refreshed.refreshToken);
+      response = await fetchReport(refreshed.accessToken);
+    } catch {
+      clearTokens();
+      throw new AuthError('Session expired', 401);
+    }
+  }
+
+  if (!response.ok) {
+    throw new AuthError('Failed to generate insurance report', response.status);
+  }
+
+  return response.blob();
+}

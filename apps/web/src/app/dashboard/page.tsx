@@ -240,6 +240,9 @@ export default function DashboardPage() {
               <Link href="/dashboard/assets" className="text-sm text-gray-600 hover:text-gray-900">
                 Assets
               </Link>
+              <Link href="/dashboard/reports" className="text-sm text-gray-600 hover:text-gray-900">
+                Reports
+              </Link>
             </div>
             <div className="flex items-center space-x-4">
               <Link
