@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { itemsApi } from '../../services/itemsApi';
-import { Item, CATEGORY_LABELS } from '../../types/item';
+import { Item, CATEGORY_LABELS, PriceHistoryResponse, PriceHistoryPoint } from '../../types/item';
 
 const { width } = Dimensions.get('window');
 
@@ -22,14 +22,57 @@ const CONDITION_LABELS: Record<string, string> = {
   poor: 'Poor',
 };
 
+function buildSparkPoints(points: PriceHistoryPoint[]): number[] {
+  return points.map((point) => Number(point.value));
+}
+
+function formatPercent(value: number): string {
+  const sign = value >= 0 ? '+' : '';
+  return `${sign}${value.toFixed(2)}%`;
+}
+
+function Sparkline({ points }: { points: PriceHistoryPoint[] }) {
+  const values = buildSparkPoints(points);
+  if (values.length === 0) return null;
+
+  const display = values.slice(-10);
+  const min = Math.min(...display);
+  const max = Math.max(...display);
+  const range = max - min || 1;
+  const BAR_HEIGHT = 40;
+  const BAR_WIDTH = 8;
+  const GAP = 3;
+
+  return (
+    <View style={styles.sparklineContainer}>
+      {display.map((v, i) => (
+        <View
+          key={i}
+          style={[
+            styles.sparklineBar,
+            {
+              width: BAR_WIDTH,
+              height: Math.max(3, ((v - min) / range) * BAR_HEIGHT),
+              marginRight: i < display.length - 1 ? GAP : 0,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
 export default function ItemDetail() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = params.id as string;
   const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryResponse | null>(null);
+  const [priceHistoryLoading, setPriceHistoryLoading] = useState(true);
 
   useEffect(() => {
     fetchItem();
+    fetchPriceHistory();
   }, [id]);
 
   const fetchItem = async () => {
@@ -40,6 +83,17 @@ export default function ItemDetail() {
       console.error('Failed to fetch item:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPriceHistory = async () => {
+    try {
+      const response = await itemsApi.getPriceHistory(id);
+      setPriceHistory(response.data);
+    } catch (error) {
+      console.error('Failed to fetch price history:', error);
+    } finally {
+      setPriceHistoryLoading(false);
     }
   };
 
@@ -58,6 +112,16 @@ export default function ItemDetail() {
       </View>
     );
   }
+
+  const trend30d = priceHistory?.trends ?? null;
+  const trendColor =
+    trend30d?.direction === 'up'
+      ? '#34C759'
+      : trend30d?.direction === 'down'
+        ? '#FF3B30'
+        : '#999';
+  const trendArrow =
+    trend30d?.direction === 'up' ? '↑' : trend30d?.direction === 'down' ? '↓' : '→';
 
   return (
     <>
@@ -99,6 +163,32 @@ export default function ItemDetail() {
                 </Text>
               </View>
             </View>
+          </View>
+
+          {/* Price History Section */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Price History</Text>
+            {priceHistoryLoading ? (
+              <ActivityIndicator size="small" color="#007AFF" style={{ marginTop: 8 }} />
+            ) : priceHistory && priceHistory.points.length > 0 ? (
+              <View style={styles.priceHistoryCard}>
+                <View style={styles.priceHistoryHeader}>
+                  {priceHistory.latestValue !== null && (
+                    <Text style={styles.latestValue}>
+                      ${Number(priceHistory.latestValue).toLocaleString()}
+                    </Text>
+                  )}
+                  {trend30d && (
+                    <Text style={[styles.trendBadge, { color: trendColor }]}>
+                      {trendArrow} {formatPercent(trend30d.changePercent)} 30d
+                    </Text>
+                  )}
+                </View>
+                <Sparkline points={priceHistory.points} />
+              </View>
+            ) : (
+              <Text style={styles.emptyHistory}>No price history yet.</Text>
+            )}
           </View>
 
           {item.model && (
@@ -244,5 +334,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     lineHeight: 24,
+  },
+  priceHistoryCard: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+  },
+  priceHistoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  latestValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  trendBadge: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sparklineContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 40,
+  },
+  sparklineBar: {
+    backgroundColor: '#007AFF',
+    borderRadius: 2,
+  },
+  emptyHistory: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });

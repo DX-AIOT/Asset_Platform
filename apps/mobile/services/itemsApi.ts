@@ -1,5 +1,5 @@
 import { api } from './api';
-import { Item, ItemCategory } from '../types/item';
+import { Item, ItemCategory, PriceHistoryResponse } from '../types/item';
 
 export interface ItemsResponse {
   items: Item[];
@@ -23,4 +23,6 @@ export const itemsApi = {
   getItemById: (id: string) => api.get<Item>(`/items/${id}`),
 
   getTotalValue: () => api.get<{ total: number; depreciated: number }>('/items/my/value'),
+
+  getPriceHistory: (id: string) => api.get<PriceHistoryResponse>(`/items/${id}/price-history`),
 };

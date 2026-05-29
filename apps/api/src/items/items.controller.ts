@@ -28,4 +28,9 @@ export class ItemsController {
   async getItem(@CurrentUser() user: any, @Param('id') id: string): Promise<ItemResponseDto> {
     return this.itemsService.findOne(id, user.id);
   }
+
+  @Get(':id/price-history')
+  async getPriceHistory(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.itemsService.getPriceHistory(id, user.id);
+  }
 }

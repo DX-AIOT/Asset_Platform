@@ -47,6 +47,57 @@ export class ItemsService {
     return item;
   }
 
+  async getPriceHistory(id: string, userId: string) {
+    const item = await this.findOne(id, userId);
+
+    if (!item.purchasePrice || !item.purchaseDate) {
+      return { points: [], latestValue: null, trends: null };
+    }
+
+    const purchaseDate = new Date(item.purchaseDate);
+    const now = new Date();
+    const purchaseValue = Number(item.purchasePrice);
+    const currentValue = Number(item.depreciatedValue) || purchaseValue;
+
+    const totalMs = now.getTime() - purchaseDate.getTime();
+    const totalMonths = totalMs / (1000 * 60 * 60 * 24 * 30.44);
+
+    if (totalMonths < 0) {
+      return { points: [], latestValue: currentValue, trends: null };
+    }
+
+    const points: { date: string; value: number; source: string }[] = [];
+    const cursor = new Date(purchaseDate);
+    cursor.setDate(1);
+
+    while (cursor <= now) {
+      const elapsed = cursor.getTime() - purchaseDate.getTime();
+      const fraction =
+        totalMs > 0 ? Math.min(1, elapsed / totalMs) : 0;
+      const value =
+        Math.round((purchaseValue + (currentValue - purchaseValue) * fraction) * 100) / 100;
+      points.push({ date: cursor.toISOString().split('T')[0], value, source: 'estimated' });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    if (points.length === 0) {
+      return { points: [], latestValue: currentValue, trends: null };
+    }
+
+    const latest = points[points.length - 1].value;
+    let trends = null;
+    if (points.length >= 2) {
+      const prev = points[points.length - 2].value;
+      const changeAmount = Math.round((latest - prev) * 100) / 100;
+      const changePercent =
+        prev !== 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
+      const direction = changeAmount > 0 ? 'up' : changeAmount < 0 ? 'down' : 'flat';
+      trends = { changeAmount, changePercent, direction };
+    }
+
+    return { points, latestValue: latest, trends };
+  }
+
   async calculatePortfolioValue(userId: string): Promise<PortfolioValueResponseDto> {
     const items = await this.itemsRepository.find({
       where: { userId },
