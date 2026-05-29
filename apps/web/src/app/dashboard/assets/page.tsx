@@ -115,7 +115,7 @@ export default function AssetsPage() {
               <RefreshCw className={`h-4 w-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button size="sm">
+            <Button size="sm" onClick={() => router.push('/dashboard/assets/new')}>
               <Plus className="h-4 w-4 mr-1.5" />
               Add Asset
             </Button>

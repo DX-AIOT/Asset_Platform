@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -482,7 +483,7 @@ export default function DashboardPage() {
                         acc.offset = end;
                         return acc;
                       },
-                      { paths: [] as React.ReactNode[], offset: 0 }
+                      { paths: [] as ReactNode[], offset: 0 }
                     ).paths}
                   </svg>
                 ) : (

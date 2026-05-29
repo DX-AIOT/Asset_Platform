@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -10,11 +11,11 @@ import type { Item, PriceHistoryResponse } from '@/types/items';
 import { CATEGORY_LABELS, CONDITION_LABELS } from '@/types/items';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Package } from 'lucide-react';
+import { ArrowLeft, Package, Pencil } from 'lucide-react';
 import { StateCard } from '@/components/ui/state-card';
 import { PriceHistoryChart } from '@/components/ui/price-history-chart';
 
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-start gap-4 py-3 border-b border-gray-100 last:border-0">
       <span className="w-40 flex-shrink-0 text-sm font-medium text-gray-500">{label}</span>
@@ -145,6 +146,10 @@ export default function AssetDetailPage() {
                     </Badge>
                   </div>
                 </div>
+                <Button size="sm" variant="outline" onClick={() => router.push(`/dashboard/assets/${item.id}/edit`)}>
+                  <Pencil className="h-4 w-4 mr-1.5" />
+                  Edit
+                </Button>
               </div>
             </div>
 

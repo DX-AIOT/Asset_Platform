@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, X } from 'lucide-react';
 
 type ToastVariant = 'success' | 'error';
@@ -28,7 +29,7 @@ const toastIcons = {
   error: AlertCircle,
 } as const;
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
+export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const removeToast = useCallback((id: string) => {

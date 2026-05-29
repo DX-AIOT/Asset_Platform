@@ -6,6 +6,8 @@ import type {
   ItemDepreciationResponse,
   PortfolioValueResponse,
   PriceHistoryResponse,
+  CreateItemInput,
+  ConditionAssessmentResult,
 } from '@/types/items';
 import { getApiBaseUrl } from './api-base-url';
 
@@ -80,6 +82,35 @@ export async function getMyItems(params?: {
 
 export async function getItem(id: string): Promise<Item> {
   return fetchWithAuth<Item>(`/items/${id}`);
+}
+
+export async function createItem(data: CreateItemInput): Promise<Item> {
+  return fetchWithAuth<Item>('/items', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateItem(id: string, data: Partial<CreateItemInput>): Promise<Item> {
+  return fetchWithAuth<Item>(`/items/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function assessCondition(
+  imageBase64: string,
+  mimeType: string,
+  itemId?: string
+): Promise<ConditionAssessmentResult> {
+  return fetchWithAuth<ConditionAssessmentResult>('/ai/condition-assessment', {
+    method: 'POST',
+    body: JSON.stringify({
+      imageBase64,
+      mimeType,
+      itemId,
+    }),
+  });
 }
 
 export async function getMyPortfolioValue(): Promise<PortfolioValueResponse> {

@@ -96,6 +96,32 @@ export interface PriceHistoryResponse {
   trends: TrendWindow[];
 }
 
+export interface CreateItemInput {
+  name: string;
+  brand?: string;
+  model?: string;
+  category?: ItemCategory;
+  serial?: string;
+  purchaseDate?: string;
+  purchasePrice?: number;
+  condition?: ItemCondition;
+  location?: string;
+  photos?: string[];
+  warrantyExpiry?: string;
+  notes?: string;
+  depreciationRatePercent?: number;
+}
+
+export type ConditionAssessmentApiCondition = 'excellent' | 'good' | 'fair' | 'poor';
+
+export interface ConditionAssessmentResult {
+  condition: ConditionAssessmentApiCondition;
+  confidence: number;
+  notes: string;
+  fallbackSuggested: boolean;
+  latencyMs: number;
+}
+
 export const CONDITION_LABELS: Record<ItemCondition, string> = {
   [ItemCondition.NEW]: 'New',
   [ItemCondition.LIKE_NEW]: 'Like New',
