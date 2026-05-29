@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -10,6 +11,8 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { User } from '../users/entities/user.entity';
 
 export interface AuthTokens {
@@ -143,6 +146,36 @@ export class AuthService {
 
   async logout(userId: string): Promise<void> {
     await this.usersService.updateRefreshToken(userId, null);
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string }> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isCurrentValid = await bcrypt.compare(dto.currentPassword, user.password);
+    if (!isCurrentValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const hashedPassword = await this.hashPassword(dto.newPassword);
+    await this.usersService.update(userId, { password: hashedPassword });
+
+    return { message: 'Password changed successfully' };
+  }
+
+  async adminResetPassword(dto: AdminResetPasswordDto): Promise<{ message: string }> {
+    const user = await this.usersService.findById(dto.userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const hashedPassword = await this.hashPassword(dto.newPassword);
+    await this.usersService.update(dto.userId, { password: hashedPassword });
+    await this.usersService.updateRefreshToken(dto.userId, null);
+
+    return { message: 'Password reset successfully' };
   }
 
   private async validateUser(email: string, password: string): Promise<User | null> {
