@@ -1,5 +1,5 @@
 import { api } from './api';
-import { Item, ItemCategory, PriceHistoryResponse } from '../types/item';
+import { Item, ItemCategory, CreateItemDto, PriceHistoryResponse } from '../types/item';
 
 export interface ItemsResponse {
   items: Item[];
@@ -21,6 +21,8 @@ export const itemsApi = {
   },
 
   getItemById: (id: string) => api.get<Item>(`/items/${id}`),
+
+  update: (id: string, data: Partial<CreateItemDto>) => api.patch<Item>(`/items/${id}`, data),
 
   getTotalValue: () => api.get<{ total: number; depreciated: number }>('/items/my/value'),
 
