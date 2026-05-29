@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { ConditionAssessmentService } from '../src/ai/condition-assessment.service';
+import { PriceHistoryService } from '../src/ai/price-history.service';
 import { Item, ItemCondition } from '../src/items/entities/item.entity';
 
 const configFor = (values: Record<string, string>): ConfigService =>
@@ -13,11 +14,15 @@ const noopRepo = () =>
     save: jest.fn(),
   }) as unknown as jest.Mocked<Pick<Repository<Item>, 'findOne' | 'save'>>;
 
+const noopPriceHistory = () =>
+  ({ recordSnapshot: jest.fn().mockResolvedValue(null) }) as unknown as PriceHistoryService;
+
 describe('ConditionAssessmentService', () => {
   describe('normalize', () => {
     const service = new ConditionAssessmentService(
       configFor({ OPENAI_LOCAL_MODE: 'true' }),
       noopRepo() as unknown as Repository<Item>,
+      noopPriceHistory(),
     );
 
     it('maps a well-formed model payload to a clamped result', () => {
@@ -71,6 +76,7 @@ describe('ConditionAssessmentService', () => {
       const service = new ConditionAssessmentService(
         configFor({ OPENAI_LOCAL_MODE: 'true' }),
         noopRepo() as unknown as Repository<Item>,
+        noopPriceHistory(),
       );
 
       await expect(service.assess({})).rejects.toBeInstanceOf(BadRequestException);
@@ -80,6 +86,7 @@ describe('ConditionAssessmentService', () => {
       const service = new ConditionAssessmentService(
         configFor({ OPENAI_LOCAL_MODE: 'true' }),
         noopRepo() as unknown as Repository<Item>,
+        noopPriceHistory(),
       );
 
       const result = await service.assess({ photoUrl: 'https://example.com/p.jpg' });
@@ -97,6 +104,7 @@ describe('ConditionAssessmentService', () => {
       const service = new ConditionAssessmentService(
         configFor({ OPENAI_API_KEY: 'test-key', OPENAI_LOCAL_MODE: 'false' }),
         repo as unknown as Repository<Item>,
+        noopPriceHistory(),
       );
       (service as unknown as { openai: unknown }).openai = {
         responses: {
@@ -129,6 +137,7 @@ describe('ConditionAssessmentService', () => {
       const service = new ConditionAssessmentService(
         configFor({ OPENAI_API_KEY: 'test-key', OPENAI_LOCAL_MODE: 'false' }),
         repo as unknown as Repository<Item>,
+        noopPriceHistory(),
       );
       (service as unknown as { openai: unknown }).openai = {
         responses: {

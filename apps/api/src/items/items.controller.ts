@@ -15,6 +15,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { ItemsService } from './items.service';
+import { PriceHistoryService } from '../ai/price-history.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItemCategory } from './entities/item.entity';
@@ -23,6 +24,7 @@ import {
   ItemResponseDto,
   ItemsListResponseDto,
   PortfolioValueResponseDto,
+  PriceHistoryResponseDto,
 } from './dto';
 
 @ApiTags('items')
@@ -31,7 +33,10 @@ import {
 @Controller('items')
 @UseGuards(JwtAuthGuard)
 export class ItemsController {
-  constructor(private readonly itemsService: ItemsService) {}
+  constructor(
+    private readonly itemsService: ItemsService,
+    private readonly priceHistoryService: PriceHistoryService,
+  ) {}
 
   @Get('my')
   @ApiOperation({
@@ -79,6 +84,25 @@ export class ItemsController {
     @Param('id') id: string,
   ): Promise<DepreciationResponseDto> {
     return this.itemsService.getDepreciation(id, user.id);
+  }
+
+  @Get(':id/price-history')
+  @ApiOperation({
+    summary: 'Get the value time-series and market trend for an asset',
+    description:
+      'Returns price-history snapshots (recorded on creation, condition change, ' +
+      'or on-demand) ordered oldest→newest, plus the directional trend (up/flat/down) ' +
+      'and % change over the 30/90/365-day trailing windows.',
+  })
+  @ApiParam({ name: 'id', description: 'Asset UUID' })
+  @ApiResponse({ status: 200, description: 'Price-history time-series and trend.', type: PriceHistoryResponseDto })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  @ApiResponse({ status: 404, description: 'Asset not found or not owned by caller.' })
+  async getItemPriceHistory(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+  ): Promise<PriceHistoryResponseDto> {
+    return this.priceHistoryService.getHistory(id, user.id);
   }
 
   @Get(':id')

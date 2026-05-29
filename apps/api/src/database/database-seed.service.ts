@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User, UserRole } from '../users/entities/user.entity';
 import { Item, ItemCategory, ItemCondition } from '../items/entities/item.entity';
+import { PriceHistorySource } from '../items/entities/price-history.entity';
+import { PriceHistoryService } from '../ai/price-history.service';
 
 @Injectable()
 export class DatabaseSeedService implements OnApplicationBootstrap {
@@ -14,6 +16,7 @@ export class DatabaseSeedService implements OnApplicationBootstrap {
     private readonly userRepo: Repository<User>,
     @InjectRepository(Item)
     private readonly itemRepo: Repository<Item>,
+    private readonly priceHistoryService: PriceHistoryService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -98,6 +101,9 @@ export class DatabaseSeedService implements OnApplicationBootstrap {
     for (const itemData of demoItems) {
       const item = this.itemRepo.create(itemData);
       await this.itemRepo.save(item);
+      // Record an initial AI value snapshot on creation so each asset starts
+      // with a price-history baseline (best-effort; never blocks seeding).
+      await this.priceHistoryService.recordSnapshot(item, PriceHistorySource.AI);
       this.logger.log(`Created demo item: ${itemData.name}`);
     }
 

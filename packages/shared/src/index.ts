@@ -4,3 +4,4 @@ export * from './utils';
 export * from './constants';
 export * from './contracts/vision';
 export * from './contracts/valuation';
+export * from './contracts/price-history';

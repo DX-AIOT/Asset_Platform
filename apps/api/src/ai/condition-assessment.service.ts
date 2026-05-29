@@ -9,6 +9,8 @@ import {
 } from '@dx-aiot/shared';
 import { ConditionAssessmentDto } from './dto/condition-assessment.dto';
 import { Item, ItemCondition } from '../items/entities/item.entity';
+import { PriceHistorySource } from '../items/entities/price-history.entity';
+import { PriceHistoryService } from './price-history.service';
 
 const CONDITION_GRADES: AssetConditionGrade[] = ['excellent', 'good', 'fair', 'poor'];
 
@@ -49,6 +51,7 @@ export class ConditionAssessmentService {
     private readonly configService: ConfigService,
     @InjectRepository(Item)
     private readonly itemsRepository: Repository<Item>,
+    private readonly priceHistoryService: PriceHistoryService,
   ) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     const baseURL = this.configService.get<string>('OPENAI_BASE_URL');
@@ -175,8 +178,17 @@ export class ConditionAssessmentService {
       // Assessment still returned to the caller; nothing to persist.
       return;
     }
-    item.condition = ConditionAssessmentService.toItemCondition(grade);
+    const nextCondition = ConditionAssessmentService.toItemCondition(grade);
+    const changed = item.condition !== nextCondition;
+    item.condition = nextCondition;
     await this.itemsRepository.save(item);
+
+    // Record a fresh value snapshot when the condition actually changes, so the
+    // price history reflects the re-graded asset. recordSnapshot is best-effort
+    // and never throws, so it cannot break the assessment response.
+    if (changed) {
+      await this.priceHistoryService.recordSnapshot(item, PriceHistorySource.AI);
+    }
   }
 
   private mockResult(startedAt: number): ConditionAssessmentResult {
