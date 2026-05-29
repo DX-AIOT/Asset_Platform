@@ -7,8 +7,8 @@ const protectedPaths = ['/dashboard', '/settings'];
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Get token from cookies (we'll set this from client)
-  const hasToken = request.cookies.has('auth_token');
+  // Check for httpOnly access_token cookie set by backend
+  const hasToken = request.cookies.has('access_token');
 
   // Check if path is protected
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));

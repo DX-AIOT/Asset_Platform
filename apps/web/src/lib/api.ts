@@ -1,4 +1,4 @@
-import { getStoredTokens, storeTokens, clearTokens, refreshToken, AuthError } from './auth';
+import { refreshToken, getCsrfToken, AuthError } from './auth';
 import type {
   ItemsListResponse,
   Item,
@@ -10,37 +10,50 @@ import { getApiBaseUrl } from './api-base-url';
 
 const API_URL = getApiBaseUrl();
 
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+function buildHeaders(method: string, extra?: HeadersInit): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (MUTATING_METHODS.has(method.toUpperCase())) {
+    headers['X-CSRF-Token'] = getCsrfToken();
+  }
+  if (extra) {
+    const extraEntries =
+      extra instanceof Headers
+        ? Array.from(extra.entries())
+        : Array.isArray(extra)
+          ? extra
+          : Object.entries(extra as Record<string, string>);
+    for (const [k, v] of extraEntries) {
+      headers[k] = v;
+    }
+  }
+  return headers;
+}
+
 async function fetchWithAuth<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const tokens = getStoredTokens();
-  if (!tokens) throw new AuthError('Not authenticated', 401);
+  const method = options?.method ?? 'GET';
+  const headers = buildHeaders(method, options?.headers);
 
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${tokens.accessToken}`,
-      ...options?.headers,
-    },
+    credentials: 'include',
+    headers,
   });
 
   if (response.status === 401) {
-    // Try refresh
+    // Try refresh — cookies handle the token exchange
     try {
-      const refreshed = await refreshToken(tokens.refreshToken);
-      storeTokens(refreshed.accessToken, refreshed.refreshToken);
+      await refreshToken();
 
       const retried = await fetch(`${API_URL}${endpoint}`, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${refreshed.accessToken}`,
-          ...options?.headers,
-        },
+        credentials: 'include',
+        headers,
       });
       if (!retried.ok) throw new AuthError('Request failed after refresh', retried.status);
       return retried.json();
     } catch {
-      clearTokens();
       throw new AuthError('Session expired', 401);
     }
   }
@@ -77,9 +90,6 @@ export async function getItemDepreciation(id: string): Promise<ItemDepreciationR
 }
 
 export async function getInsuranceReportPdf(categoryIds?: string[]): Promise<Blob> {
-  const tokens = getStoredTokens();
-  if (!tokens) throw new AuthError('Not authenticated', 401);
-
   const query = new URLSearchParams({ format: 'pdf' });
   if (categoryIds && categoryIds.length > 0) {
     query.set('categoryIds', categoryIds.join(','));
@@ -87,22 +97,18 @@ export async function getInsuranceReportPdf(categoryIds?: string[]): Promise<Blo
 
   const endpoint = `/reports/insurance?${query.toString()}`;
 
-  const fetchReport = async (accessToken: string): Promise<Response> =>
+  const fetchReport = (): Promise<Response> =>
     fetch(`${API_URL}${endpoint}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
+      credentials: 'include',
     });
 
-  let response = await fetchReport(tokens.accessToken);
+  let response = await fetchReport();
 
   if (response.status === 401) {
     try {
-      const refreshed = await refreshToken(tokens.refreshToken);
-      storeTokens(refreshed.accessToken, refreshed.refreshToken);
-      response = await fetchReport(refreshed.accessToken);
+      await refreshToken();
+      response = await fetchReport();
     } catch {
-      clearTokens();
       throw new AuthError('Session expired', 401);
     }
   }
