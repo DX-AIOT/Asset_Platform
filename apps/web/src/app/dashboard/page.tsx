@@ -4,9 +4,14 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getMyItems, getMyPortfolioValue } from '@/lib/api';
-import { CATEGORY_LABELS, type Item, type ItemCategory } from '@/types/items';
-import { AlertTriangle, BarChart3, Clock3, Package, Settings, Wallet } from 'lucide-react';
+import { getItemDepreciation, getMyItems, getMyPortfolioValue } from '@/lib/api';
+import {
+  CATEGORY_LABELS,
+  type Item,
+  type ItemCategory,
+  type ItemDepreciationResponse,
+} from '@/types/items';
+import { AlertTriangle, Clock3, Package, Settings, TrendingDown, Wallet } from 'lucide-react';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
@@ -32,6 +37,9 @@ export default function DashboardPage() {
     total: 0,
     depreciated: 0,
   });
+  const [depreciationByItemId, setDepreciationByItemId] = useState<
+    Record<string, ItemDepreciationResponse>
+  >({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,6 +111,40 @@ export default function DashboardPage() {
     [items]
   );
 
+  const sparklineItems = useMemo(() => items.slice(0, 6), [items]);
+
+  useEffect(() => {
+    if (sparklineItems.length === 0) {
+      setDepreciationByItemId({});
+      return;
+    }
+
+    let cancelled = false;
+    const fetchDepreciation = async () => {
+      const results = await Promise.allSettled(
+        sparklineItems.map(async (item) => ({
+          itemId: item.id,
+          data: await getItemDepreciation(item.id),
+        }))
+      );
+
+      if (cancelled) return;
+
+      const nextState: Record<string, ItemDepreciationResponse> = {};
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          nextState[result.value.itemId] = result.value.data;
+        }
+      });
+      setDepreciationByItemId(nextState);
+    };
+
+    void fetchDepreciation();
+    return () => {
+      cancelled = true;
+    };
+  }, [sparklineItems]);
+
   const expiringWarranty = useMemo(
     () =>
       [...items]
@@ -114,6 +156,68 @@ export default function DashboardPage() {
         .slice(0, 6),
     [items]
   );
+
+  const portfolioLossPercent = useMemo(() => {
+    if (metrics.totalPortfolioValue <= 0) return null;
+    return Number(
+      ((metrics.totalDepreciation / metrics.totalPortfolioValue) * 100).toFixed(1)
+    );
+  }, [metrics.totalDepreciation, metrics.totalPortfolioValue]);
+
+  const portfolioValueOverTime = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const yearlyTotals = new Map<number, number>();
+    let earliestYear = currentYear;
+
+    items.forEach((item) => {
+      if (!item.purchaseDate || !item.purchasePrice || item.purchasePrice <= 0) {
+        return;
+      }
+
+      const purchaseYear = new Date(item.purchaseDate).getFullYear();
+      if (!Number.isFinite(purchaseYear) || purchaseYear > currentYear) {
+        return;
+      }
+
+      earliestYear = Math.min(earliestYear, purchaseYear);
+      const purchasePrice = item.purchasePrice;
+      const currentValue = Math.max(0, item.depreciatedValue ?? purchasePrice);
+      const yearsOwned = Math.max(0, currentYear - purchaseYear);
+      const rawRatio = purchasePrice > 0 ? currentValue / purchasePrice : 1;
+      const ratio = Math.min(1, Math.max(0, rawRatio));
+      const annualRate =
+        yearsOwned > 0
+          ? Math.min(0.9, Math.max(0, 1 - Math.pow(ratio, 1 / yearsOwned)))
+          : 0;
+
+      for (let year = purchaseYear; year <= currentYear; year += 1) {
+        const elapsed = year - purchaseYear;
+        const value =
+          year === currentYear
+            ? currentValue
+            : purchasePrice * Math.pow(1 - annualRate, elapsed);
+        yearlyTotals.set(year, (yearlyTotals.get(year) ?? 0) + value);
+      }
+    });
+
+    if (yearlyTotals.size === 0) {
+      return [];
+    }
+
+    const points: { year: number; value: number }[] = [];
+    for (let year = earliestYear; year <= currentYear; year += 1) {
+      points.push({ year, value: yearlyTotals.get(year) ?? 0 });
+    }
+    return points;
+  }, [items]);
+
+  const portfolioTrend = useMemo(() => {
+    if (portfolioValueOverTime.length < 2) return null;
+    const firstValue = portfolioValueOverTime[0]?.value ?? 0;
+    const lastValue = portfolioValueOverTime[portfolioValueOverTime.length - 1]?.value ?? 0;
+    if (firstValue <= 0) return null;
+    return ((lastValue - firstValue) / firstValue) * 100;
+  }, [portfolioValueOverTime]);
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -191,10 +295,141 @@ export default function DashboardPage() {
           <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-gray-500">Khấu hao tổng</p>
             <p className="mt-2 text-2xl font-bold text-amber-700">{formatCurrency(metrics.totalDepreciation)}</p>
+            <p className="mt-1 text-sm text-amber-700">
+              {portfolioLossPercent === null ? 'No depreciation data yet' : `${portfolioLossPercent}% loss vs original value`}
+            </p>
           </div>
         </div>
 
+        <section className="mt-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Depreciation by asset</h3>
+            <TrendingDown className="h-5 w-5 text-amber-500" />
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {sparklineItems.length > 0 ? (
+              sparklineItems.map((item) => {
+                const depreciation = depreciationByItemId[item.id];
+                const hasHistory = (depreciation?.valueHistory?.length ?? 0) > 1;
+                const percentLost = depreciation?.percentLost;
+
+                return (
+                  <div key={item.id} className="rounded-md border border-gray-100 p-3">
+                    <p className="truncate font-medium text-gray-900">{item.name}</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Current value:{' '}
+                      {depreciation?.currentValue === null
+                        ? 'Not available'
+                        : depreciation
+                          ? formatCurrency(depreciation.currentValue)
+                          : 'Loading...'}
+                    </p>
+                    <div className="mt-2">
+                      {hasHistory ? (
+                        <Sparkline values={depreciation.valueHistory.map((point) => point.value)} />
+                      ) : (
+                        <div className="flex h-14 items-center justify-center rounded bg-gray-100 text-xs text-gray-500">
+                          No purchase/depreciation data
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      {percentLost === null || percentLost === undefined
+                        ? 'Loss unavailable'
+                        : `${percentLost.toFixed(1)}% lost`}
+                    </p>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-sm text-gray-500">No assets available.</p>
+            )}
+          </div>
+        </section>
+
         <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Portfolio Value Over Time</h3>
+              <BarChart3 className="h-5 w-5 text-blue-600" />
+            </div>
+            <div className="mt-4">
+              {portfolioValueOverTime.length > 1 ? (
+                <div>
+                  <svg viewBox="0 0 100 40" className="h-52 w-full">
+                    <line x1="0" y1="36" x2="100" y2="36" stroke="#e5e7eb" strokeWidth="0.6" />
+                    <line x1="0" y1="20" x2="100" y2="20" stroke="#f3f4f6" strokeWidth="0.6" />
+                    <line x1="0" y1="4" x2="100" y2="4" stroke="#f3f4f6" strokeWidth="0.6" />
+                    {(() => {
+                      const values = portfolioValueOverTime.map((point) => point.value);
+                      const min = Math.min(...values);
+                      const max = Math.max(...values);
+                      const range = Math.max(max - min, 1);
+                      const step = 100 / Math.max(portfolioValueOverTime.length - 1, 1);
+                      const points = portfolioValueOverTime
+                        .map((point, index) => {
+                          const x = index * step;
+                          const normalized = (point.value - min) / range;
+                          const y = 36 - normalized * 32;
+                          return `${x},${y}`;
+                        })
+                        .join(' ');
+
+                      const latestValue =
+                        portfolioValueOverTime[portfolioValueOverTime.length - 1]?.value ?? 0;
+                      const latestX = 100;
+                      const latestY = 36 - ((latestValue - min) / range) * 32;
+
+                      return (
+                        <>
+                          <polyline
+                            fill="none"
+                            stroke="#2563eb"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            points={points}
+                          />
+                          <circle cx={latestX} cy={latestY} r="1.8" fill="#2563eb" />
+                        </>
+                      );
+                    })()}
+                  </svg>
+                  <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                    <span>{portfolioValueOverTime[0]?.year}</span>
+                    <span>{portfolioValueOverTime[portfolioValueOverTime.length - 1]?.year}</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="rounded-md bg-gray-50 px-3 py-2">
+                      <p className="text-xs text-gray-500">Current portfolio value</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {formatCurrency(
+                          portfolioValueOverTime[portfolioValueOverTime.length - 1]?.value ?? 0
+                        )}
+                      </p>
+                    </div>
+                    <div className="rounded-md bg-gray-50 px-3 py-2">
+                      <p className="text-xs text-gray-500">Trend from first year</p>
+                      <p
+                        className={`text-sm font-semibold ${
+                          (portfolioTrend ?? 0) >= 0 ? 'text-emerald-700' : 'text-amber-700'
+                        }`}
+                      >
+                        {portfolioTrend !== null
+                          ? `${portfolioTrend >= 0 ? '+' : ''}${portfolioTrend.toFixed(1)}%`
+                          : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  Need at least one dated asset with purchase price to display trend.
+                </p>
+              )}
+            </div>
+          </section>
+
           <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900">Phân bố theo category</h3>
             <div className="mt-4 flex items-center justify-center">
@@ -368,5 +603,32 @@ export default function DashboardPage() {
         {isLoading && <p className="mt-4 text-sm text-gray-500">Refreshing dashboard data...</p>}
       </main>
     </div>
+  );
+}
+
+function Sparkline({ values }: { values: number[] }) {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const points = values
+    .map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * 100;
+      const y = 90 - ((value - min) / range) * 80;
+      return `${x},${y}`;
+    })
+    .join(' ');
+
+  return (
+    <svg viewBox="0 0 100 100" className="h-14 w-full">
+      <polyline
+        fill="none"
+        stroke="#f59e0b"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={points}
+      />
+    </svg>
   );
 }
