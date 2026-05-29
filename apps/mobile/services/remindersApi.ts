@@ -14,4 +14,7 @@ export const remindersApi = {
 
   complete: (reminderId: string, payload: CompleteReminderDto = {}) =>
     api.post(`/reminders/${reminderId}/complete`, payload),
+
+  registerDeviceToken: (fcmToken: string) =>
+    api.put('/reminders/device-token', { fcmToken }),
 };
