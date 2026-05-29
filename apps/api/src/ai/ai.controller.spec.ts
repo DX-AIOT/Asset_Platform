@@ -2,6 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { AiController } from './ai.controller';
 import { VisionRecognitionService } from './vision-recognition.service';
 import { BarcodeLookupService } from './barcode-lookup.service';
+import { MarketValuationService } from './market-valuation.service';
+import { ValuationCacheService } from './valuation-cache.service';
 
 describe('AiController', () => {
   const createController = () => {
@@ -17,7 +19,16 @@ describe('AiController', () => {
     } as unknown as VisionRecognitionService;
 
     const barcodeService = new BarcodeLookupService();
-    const controller = new AiController(mockVisionService, barcodeService);
+    // No REDIS_URL configured -> in-memory cache fallback.
+    const cacheService = new ValuationCacheService({
+      get: () => undefined,
+    } as never);
+    const valuationService = new MarketValuationService(cacheService);
+    const controller = new AiController(
+      mockVisionService,
+      barcodeService,
+      valuationService,
+    );
 
     return { controller, mockVisionService };
   };
@@ -54,5 +65,20 @@ describe('AiController', () => {
     expect(() => controller.lookupBarcode({ barcode: ' ' })).toThrow(
       BadRequestException,
     );
+  });
+
+  it('returns a valuation result for a supported asset', async () => {
+    const { controller } = createController();
+    const result = await controller.valuation({
+      name: 'iPhone 14 Pro',
+      category: 'mobile_phones',
+      condition: 'good',
+      purchaseYear: 2023,
+    });
+
+    expect(result.estimatedValue).toBeGreaterThan(0);
+    expect(result.currency).toBe('USD');
+    expect(['high', 'medium', 'low']).toContain(result.confidence);
+    expect(result.comparables.length).toBeGreaterThan(0);
   });
 });
