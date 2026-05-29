@@ -27,6 +27,6 @@ import { PriceHistory } from '../items/entities/price-history.entity';
     ConditionAssessmentService,
     PriceHistoryService,
   ],
-  exports: [PriceHistoryService],
+  exports: [ConditionAssessmentService, PriceHistoryService],
 })
 export class AiModule {}

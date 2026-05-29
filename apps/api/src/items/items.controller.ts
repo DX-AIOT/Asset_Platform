@@ -1,7 +1,12 @@
 import {
+  Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
+  Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -20,6 +25,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItemCategory } from './entities/item.entity';
 import {
+  CreateItemDto,
+  UpdateItemDto,
   DepreciationResponseDto,
   ItemResponseDto,
   ItemsListResponseDto,
@@ -37,6 +44,40 @@ export class ItemsController {
     private readonly itemsService: ItemsService,
     private readonly priceHistoryService: PriceHistoryService,
   ) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create a new asset',
+    description: 'Creates an asset owned by the authenticated user. The photos array is persisted in the submitted order.',
+  })
+  @ApiResponse({ status: 201, description: 'Asset created.', type: ItemResponseDto })
+  @ApiResponse({ status: 400, description: 'Validation error.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  async createItem(
+    @CurrentUser() user: any,
+    @Body() dto: CreateItemDto,
+  ): Promise<ItemResponseDto> {
+    return this.itemsService.create(dto, user.id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Partially update an asset',
+    description: 'Updates only the supplied fields. If photos is provided, condition is re-assessed asynchronously.',
+  })
+  @ApiParam({ name: 'id', description: 'Asset UUID' })
+  @ApiResponse({ status: 200, description: 'Updated asset.', type: ItemResponseDto })
+  @ApiResponse({ status: 400, description: 'Validation error.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  @ApiResponse({ status: 404, description: 'Asset not found or not owned by caller.' })
+  async updateItem(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateItemDto,
+  ): Promise<ItemResponseDto> {
+    return this.itemsService.update(id, user.id, dto);
+  }
 
   @Get('my')
   @ApiOperation({

@@ -1,3 +1,5 @@
+export * from './create-item.dto';
+export * from './update-item.dto';
 export * from './depreciation-response.dto';
 export * from './item-response.dto';
 export * from './items-list-response.dto';

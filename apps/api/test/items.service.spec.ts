@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { ItemsService } from '../src/items/items.service';
 import { ItemCategory, ItemCondition } from '../src/items/entities/item.entity';
+import { CreateItemDto } from '../src/items/dto';
 
 function makeItem(overrides: Partial<any> = {}): any {
   return {
@@ -19,7 +20,7 @@ function makeItem(overrides: Partial<any> = {}): any {
   };
 }
 
-function makeService(items: any[]): ItemsService {
+function makeService(items: any[]): { service: ItemsService; repo: any } {
   const repo = {
     find: jest.fn().mockResolvedValue(items),
     findOne: jest.fn().mockImplementation(({ where }) => {
@@ -28,9 +29,14 @@ function makeService(items: any[]): ItemsService {
       );
       return Promise.resolve(found ?? null);
     }),
+    create: jest.fn().mockImplementation((data) => ({ id: 'new-item', ...data })),
+    save: jest.fn().mockImplementation((item) => Promise.resolve(item)),
     createQueryBuilder: jest.fn(),
   } as any;
-  return new ItemsService(repo);
+  const conditionAssessmentService = {
+    assess: jest.fn().mockResolvedValue(undefined),
+  } as any;
+  return { service: new ItemsService(repo, conditionAssessmentService), repo };
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -38,7 +44,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 describe('ItemsService — depreciation', () => {
   describe('getDepreciation — null purchaseDate', () => {
     it('returns null currentValue and empty history when purchaseDate is missing', async () => {
-      const service = makeService([makeItem({ id: 'item-1', userId: 'user-1' })]);
+      const { service } = makeService([makeItem({ id: 'item-1', userId: 'user-1' })]);
       const result = await service.getDepreciation('item-1', 'user-1');
 
       expect(result.currentValue).toBeNull();
@@ -48,7 +54,7 @@ describe('ItemsService — depreciation', () => {
     });
 
     it('returns null currentValue when purchasePrice is missing', async () => {
-      const service = makeService([
+      const { service } = makeService([
         makeItem({ id: 'item-1', userId: 'user-1', purchaseDate: new Date('2022-01-01') }),
       ]);
       const result = await service.getDepreciation('item-1', 'user-1');
@@ -66,7 +72,7 @@ describe('ItemsService — depreciation', () => {
         purchaseDate: new Date(`${CURRENT_YEAR}-01-01`),
         purchasePrice: 1000,
       });
-      const service = makeService([item]);
+      const { service } = makeService([item]);
       const result = await service.getDepreciation('item-1', 'user-1');
       expect(result.annualRatePercent).toBe(20);
       expect(result.currentValue).toBe(1000); // year 0
@@ -81,7 +87,7 @@ describe('ItemsService — depreciation', () => {
         purchaseDate: new Date(`${CURRENT_YEAR - 1}-01-01`),
         purchasePrice: 20000,
       });
-      const service = makeService([item]);
+      const { service } = makeService([item]);
       const result = await service.getDepreciation('item-1', 'user-1');
       expect(result.annualRatePercent).toBe(15);
       // After 1 year at 15%: 20000 * 0.85 = 17000
@@ -97,7 +103,7 @@ describe('ItemsService — depreciation', () => {
         purchaseDate: new Date(`${CURRENT_YEAR - 2}-01-01`),
         purchasePrice: 1000,
       });
-      const service = makeService([item]);
+      const { service } = makeService([item]);
       const result = await service.getDepreciation('item-1', 'user-1');
       expect(result.annualRatePercent).toBe(10);
       // After 2 years at 10%: 1000 * 0.9^2 = 810
@@ -112,7 +118,7 @@ describe('ItemsService — depreciation', () => {
         purchaseDate: new Date(`${CURRENT_YEAR - 1}-01-01`),
         purchasePrice: 500,
       });
-      const service = makeService([item]);
+      const { service } = makeService([item]);
       const result = await service.getDepreciation('item-1', 'user-1');
       expect(result.annualRatePercent).toBe(12);
       // After 1 year at 12%: 500 * 0.88 = 440
@@ -130,7 +136,7 @@ describe('ItemsService — depreciation', () => {
         purchasePrice: 1000,
         depreciationRatePercent: 5,
       });
-      const service = makeService([item]);
+      const { service } = makeService([item]);
       const result = await service.getDepreciation('item-1', 'user-1');
       expect(result.annualRatePercent).toBe(5);
       // After 1 year at 5%: 1000 * 0.95 = 950
@@ -148,7 +154,7 @@ describe('ItemsService — depreciation', () => {
         purchaseDate: new Date(`${purchaseYear}-06-15`),
         purchasePrice: 1000,
       });
-      const service = makeService([item]);
+      const { service } = makeService([item]);
       const result = await service.getDepreciation('item-1', 'user-1');
 
       expect(result.valueHistory).toHaveLength(4); // purchaseYear, +1, +2, +3
@@ -174,7 +180,7 @@ describe('ItemsService — depreciation', () => {
         purchasePrice: 100,
         depreciationRatePercent: 100,
       });
-      const service = makeService([item]);
+      const { service } = makeService([item]);
       const result = await service.getDepreciation('item-1', 'user-1');
       for (const point of result.valueHistory) {
         expect(point.value).toBeGreaterThanOrEqual(0);
@@ -184,7 +190,7 @@ describe('ItemsService — depreciation', () => {
 
   describe('getDepreciation — not found', () => {
     it('throws NotFoundException for unknown item', async () => {
-      const service = makeService([]);
+      const { service } = makeService([]);
       await expect(
         service.getDepreciation('unknown', 'user-1'),
       ).rejects.toThrow(NotFoundException);
@@ -205,7 +211,7 @@ describe('ItemsService — depreciation', () => {
           purchasePrice: 1000,
         }),
       ];
-      const service = makeService(items);
+      const { service } = makeService(items);
       const result = await service.calculatePortfolioValue('user-1');
 
       // Vehicles 1yr at 15%: 17000; Furniture 2yr at 10%: 810
@@ -217,17 +223,66 @@ describe('ItemsService — depreciation', () => {
       const items = [
         makeItem({ purchasePrice: 500, purchaseDate: null }),
       ];
-      const service = makeService(items);
+      const { service } = makeService(items);
       const result = await service.calculatePortfolioValue('user-1');
       expect(result.total).toBe(500);
       expect(result.depreciated).toBe(500);
     });
 
     it('returns zeros when no items exist', async () => {
-      const service = makeService([]);
+      const { service } = makeService([]);
       const result = await service.calculatePortfolioValue('user-1');
       expect(result.total).toBe(0);
       expect(result.depreciated).toBe(0);
     });
+  });
+});
+
+describe('ItemsService — create', () => {
+  it('persists photos in submitted order without mutation', async () => {
+    const { service, repo } = makeService([]);
+    const photos = ['photo-c.jpg', 'photo-a.jpg', 'photo-b.jpg'];
+    const dto: CreateItemDto = { name: 'Camera', photos };
+
+    await service.create(dto, 'user-1');
+
+    const createdArg = repo.create.mock.calls[0][0];
+    expect(createdArg.photos).toEqual(photos);
+    expect(repo.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('defaults photos to empty array when not provided', async () => {
+    const { service, repo } = makeService([]);
+    const dto: CreateItemDto = { name: 'Laptop' };
+
+    await service.create(dto, 'user-1');
+
+    const createdArg = repo.create.mock.calls[0][0];
+    expect(createdArg.photos).toEqual([]);
+  });
+
+  it('sets userId on created item', async () => {
+    const { service, repo } = makeService([]);
+    const dto: CreateItemDto = { name: 'Watch' };
+
+    await service.create(dto, 'user-42');
+
+    const createdArg = repo.create.mock.calls[0][0];
+    expect(createdArg.userId).toBe('user-42');
+  });
+
+  it('returns saved item including photos', async () => {
+    const photos = ['img1.jpg', 'img2.jpg'];
+    const { service } = makeService([]);
+    const dto: CreateItemDto = {
+      name: 'Tablet',
+      category: ItemCategory.ELECTRONICS,
+      photos,
+    };
+
+    const result = await service.create(dto, 'user-1');
+
+    expect(result.photos).toEqual(photos);
+    expect(result.name).toBe('Tablet');
   });
 });

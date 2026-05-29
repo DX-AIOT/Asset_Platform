@@ -1,8 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConditionAssessmentService } from '../ai/condition-assessment.service';
 import { Item, ItemCategory } from './entities/item.entity';
 import {
+  CreateItemDto,
+  UpdateItemDto,
   DepreciationResponseDto,
   DepreciationYearPointDto,
   ItemsListResponseDto,
@@ -21,10 +24,44 @@ const CATEGORY_DEFAULT_RATES: Record<ItemCategory, number> = {
 
 @Injectable()
 export class ItemsService {
+  private readonly logger = new Logger(ItemsService.name);
+
   constructor(
     @InjectRepository(Item)
     private itemsRepository: Repository<Item>,
+    private readonly conditionAssessmentService: ConditionAssessmentService,
   ) {}
+
+  async create(dto: CreateItemDto, userId: string): Promise<Item> {
+    const item = this.itemsRepository.create({
+      ...dto,
+      photos: dto.photos ?? [],
+      userId,
+    });
+    const saved = await this.itemsRepository.save(item);
+    this.triggerConditionAssessment(saved.id, saved.photos);
+    return saved;
+  }
+
+  async update(id: string, userId: string, dto: UpdateItemDto): Promise<Item> {
+    const item = await this.findOne(id, userId);
+    Object.assign(item, dto);
+    const saved = await this.itemsRepository.save(item);
+    if (dto.photos !== undefined) {
+      this.triggerConditionAssessment(saved.id, saved.photos);
+    }
+    return saved;
+  }
+
+  private triggerConditionAssessment(itemId: string, photos: string[]): void {
+    const photoUrl = photos?.[0];
+    if (!photoUrl) return;
+    this.conditionAssessmentService
+      .assess({ itemId, photoUrl })
+      .catch((err: unknown) =>
+        this.logger.error(`Condition assessment failed for item ${itemId}`, err),
+      );
+  }
 
   async findMyItems(
     userId: string,
