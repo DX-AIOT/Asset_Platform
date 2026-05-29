@@ -34,7 +34,7 @@ export class FamilyShare {
   @JoinColumn({ name: 'ownerId' })
   owner: User;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   sharedWithUserId: string;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })

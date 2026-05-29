@@ -22,7 +22,7 @@ export class Notification {
   @Column({ default: 'maintenance_reminder' })
   type!: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   referenceId!: string | null;
 
   @Column({ default: false })
