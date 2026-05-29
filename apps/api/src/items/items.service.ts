@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Item, ItemCategory } from './entities/item.entity';
-import { ItemsListResponseDto, PortfolioValueResponseDto } from './dto';
+import { ItemsListResponseDto, PortfolioValueResponseDto, UpdateItemDto } from './dto';
 
 @Injectable()
 export class ItemsService {
@@ -45,6 +45,12 @@ export class ItemsService {
     }
 
     return item;
+  }
+
+  async update(id: string, userId: string, dto: UpdateItemDto): Promise<Item> {
+    const item = await this.findOne(id, userId);
+    Object.assign(item, dto);
+    return this.itemsRepository.save(item);
   }
 
   async getPriceHistory(id: string, userId: string) {
