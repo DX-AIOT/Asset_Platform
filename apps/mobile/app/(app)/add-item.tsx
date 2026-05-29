@@ -152,6 +152,16 @@ export default function AddItem() {
     setPhotos(photos.filter((_: string, i: number) => i !== index));
   };
 
+  const reorderPhoto = (index: number, direction: 'left' | 'right') => {
+    const next = direction === 'left' ? index - 1 : index + 1;
+    if (next < 0 || next >= photos.length) return;
+    setPhotos((prev) => {
+      const updated = [...prev];
+      [updated[index], updated[next]] = [updated[next], updated[index]];
+      return updated;
+    });
+  };
+
   const showPhotoOptions = () => {
     Alert.alert('Add Photo', 'Choose a source', [
       { text: 'Camera', onPress: pickImageFromCamera },
@@ -241,6 +251,25 @@ export default function AddItem() {
                 >
                   <Text style={styles.removePhotoText}>×</Text>
                 </TouchableOpacity>
+                <View style={styles.reorderRow}>
+                  <TouchableOpacity
+                    style={[styles.reorderButton, index === 0 && styles.reorderButtonDisabled]}
+                    onPress={() => reorderPhoto(index, 'left')}
+                    disabled={index === 0}
+                  >
+                    <Text style={styles.reorderButtonText}>◀</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.reorderButton,
+                      index === photos.length - 1 && styles.reorderButtonDisabled,
+                    ]}
+                    onPress={() => reorderPhoto(index, 'right')}
+                    disabled={index === photos.length - 1}
+                  >
+                    <Text style={styles.reorderButtonText}>▶</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
             <TouchableOpacity style={styles.addPhotoButton} onPress={showPhotoOptions}>
@@ -501,6 +530,26 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  reorderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  reorderButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 2,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    marginHorizontal: 1,
+  },
+  reorderButtonDisabled: {
+    opacity: 0.3,
+  },
+  reorderButtonText: {
+    fontSize: 12,
+    color: '#333',
   },
   addPhotoButton: {
     width: 100,
