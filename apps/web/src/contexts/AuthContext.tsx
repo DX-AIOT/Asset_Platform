@@ -33,9 +33,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const tokens = authApi.getStoredTokens();
       if (!tokens) {
+        deleteCookie('auth_token');
+        setUser(null);
         setLoading(false);
         return;
       }
+
+      // Keep middleware auth cookie in sync with stored tokens.
+      setCookie('auth_token', 'true');
 
       const profile = await authApi.getProfile(tokens.accessToken);
       setUser(profile);
@@ -52,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const tokens = authApi.getStoredTokens();
       if (!tokens?.refreshToken) {
         authApi.clearTokens();
+        deleteCookie('auth_token');
         setUser(null);
         return;
       }
