@@ -79,14 +79,16 @@ describe('ReportsService — generateInsurancePdf', () => {
   });
 
   it('filters by categoryIds when provided', async () => {
+    const qb = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+
     const itemRepo = {
-      createQueryBuilder: jest.fn().mockImplementation(() => ({
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        addOrderBy: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([]),
-      })),
+      createQueryBuilder: jest.fn().mockReturnValue(qb),
     } as any;
 
     const userRepo = { findOne: jest.fn().mockResolvedValue(makeUser()) } as any;
@@ -94,7 +96,6 @@ describe('ReportsService — generateInsurancePdf', () => {
 
     await service.generateInsurancePdf('user-1', ['electronics', 'laptops']);
 
-    const qb = itemRepo.createQueryBuilder();
     expect(qb.andWhere).toHaveBeenCalledWith('item.category IN (:...cats)', {
       cats: ['electronics', 'laptops'],
     });

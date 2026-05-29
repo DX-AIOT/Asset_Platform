@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Item, ItemCategory } from '../items/entities/item.entity';
 import { User } from '../users/entities/user.entity';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit';
 import * as https from 'https';
 import * as http from 'http';
 
