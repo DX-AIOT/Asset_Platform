@@ -10,6 +10,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItemCategory } from './entities/item.entity';
 import {
+  DepreciationResponseDto,
   ItemResponseDto,
   ItemsListResponseDto,
   PortfolioValueResponseDto,
@@ -34,6 +35,14 @@ export class ItemsController {
     @CurrentUser() user: any,
   ): Promise<PortfolioValueResponseDto> {
     return this.itemsService.calculatePortfolioValue(user.id);
+  }
+
+  @Get(':id/depreciation')
+  async getItemDepreciation(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+  ): Promise<DepreciationResponseDto> {
+    return this.itemsService.getDepreciation(id, user.id);
   }
 
   @Get(':id')

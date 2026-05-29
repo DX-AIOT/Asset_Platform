@@ -76,6 +76,9 @@ export class Item {
   @Column({ type: 'text', nullable: true })
   notes!: string;
 
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  depreciationRatePercent!: number;
+
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   depreciatedValue!: number;
 
