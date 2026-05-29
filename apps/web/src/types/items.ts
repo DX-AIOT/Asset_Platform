@@ -46,6 +46,19 @@ export interface PortfolioValueResponse {
   depreciated: number;
 }
 
+export interface DepreciationHistoryPoint {
+  year: number;
+  date: string;
+  value: number;
+}
+
+export interface ItemDepreciationResponse {
+  currentValue: number | null;
+  percentLost: number | null;
+  annualRatePercent: number;
+  valueHistory: DepreciationHistoryPoint[];
+}
+
 export const CATEGORY_LABELS: Record<ItemCategory, string> = {
   [ItemCategory.ELECTRONICS]: 'Electronics',
   [ItemCategory.MOBILE_PHONES]: 'Mobile Phones',
