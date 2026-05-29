@@ -12,6 +12,7 @@ import {
   type ItemDepreciationResponse,
 } from '@/types/items';
 import { AlertTriangle, BarChart3, Clock3, Package, Settings, TrendingDown, Wallet } from 'lucide-react';
+import { StateCard } from '@/components/ui/state-card';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
@@ -224,7 +225,17 @@ export default function DashboardPage() {
   }, [portfolioValueOverTime]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md">
+          <StateCard
+            variant="loading"
+            title="Preparing dashboard"
+            description="Loading your account and portfolio data."
+          />
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -278,11 +289,16 @@ export default function DashboardPage() {
         </div>
 
         {error && (
-          <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            <strong>Error:</strong> {error}
-            <button onClick={fetchDashboardData} className="ml-2 underline hover:no-underline">
-              Retry
-            </button>
+          <div className="mt-6">
+            <StateCard
+              variant="error"
+              title="Could not refresh dashboard data"
+              description={error}
+              actionLabel="Retry"
+              onAction={() => {
+                void fetchDashboardData();
+              }}
+            />
           </div>
         )}
 

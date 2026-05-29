@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { StateCard } from '@/components/ui/state-card';
 
 export default function SettingsPage() {
   const { user, loading, logout } = useAuth();
@@ -16,7 +17,17 @@ export default function SettingsPage() {
   }, [loading, user, router]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md">
+          <StateCard
+            variant="loading"
+            title="Loading settings"
+            description="Fetching your profile and security settings."
+          />
+        </div>
+      </div>
+    );
   }
 
   if (!user) {

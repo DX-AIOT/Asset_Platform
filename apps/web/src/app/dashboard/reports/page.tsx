@@ -9,6 +9,7 @@ import { getInsuranceReportPdf, getMyItems, getMyPortfolioValue } from '@/lib/ap
 import { CATEGORY_LABELS, type ItemCategory } from '@/types/items';
 import { Button } from '@/components/ui/button';
 import { StateCard } from '@/components/ui/state-card';
+import { useToast } from '@/contexts/ToastContext';
 
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -36,6 +37,7 @@ function formatDateTime(date: Date): string {
  */
 export default function ReportsPage() {
   const { user, loading: authLoading, logout } = useAuth();
+  const { showToast } = useToast();
   const router = useRouter();
   const [availableCategories, setAvailableCategories] = useState<ItemCategory[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<ItemCategory[]>([]);
@@ -96,8 +98,19 @@ export default function ReportsPage() {
       const filename = `insurance-report-${new Date().toISOString().slice(0, 10)}.pdf`;
       downloadBlob(blob, filename);
       setLastGeneratedAt(new Date());
+      showToast({
+        variant: 'success',
+        title: 'Report downloaded',
+        description: `Saved as ${filename}.`,
+      });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to generate insurance report');
+      const message = err instanceof Error ? err.message : 'Failed to generate insurance report';
+      setError(message);
+      showToast({
+        variant: 'error',
+        title: 'Report generation failed',
+        description: message,
+      });
     } finally {
       setIsGenerating(false);
     }

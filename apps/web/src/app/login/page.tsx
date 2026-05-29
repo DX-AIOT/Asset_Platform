@@ -3,34 +3,46 @@
 import { useState, useEffect, FormEvent } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function LoginPage() {
   const { login, error: authError, clearError } = useAuth();
+  const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<{ email?: string; password?: string; form?: string }>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     return () => { clearError(); };
-  }, []);
+  }, [clearError]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
+    setErrors({});
     setLoading(true);
 
+    const nextErrors: { email?: string; password?: string } = {};
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address');
+      nextErrors.email = 'Please enter a valid email address';
+    }
+    if (password.trim().length === 0) {
+      nextErrors.password = 'Password is required';
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
       setLoading(false);
       return;
     }
 
     try {
       await login({ email, password });
+      showToast({ variant: 'success', title: 'Signed in', description: 'Welcome back.' });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      const message = err instanceof Error ? err.message : 'Login failed';
+      setErrors({ form: message });
+      showToast({ variant: 'error', title: 'Sign in failed', description: message });
     } finally {
       setLoading(false);
     }
@@ -58,9 +70,9 @@ export default function LoginPage() {
             </div>
           )}
 
-          {error && (
+          {errors.form && (
             <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
+              <p className="text-sm text-red-800">{errors.form}</p>
             </div>
           )}
 
@@ -76,10 +88,17 @@ export default function LoginPage() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => { clearError(); setEmail(e.target.value); }}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                onChange={(e) => {
+                  clearError();
+                  setEmail(e.target.value);
+                  setErrors((current) => ({ ...current, email: undefined, form: undefined }));
+                }}
+                className={`appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:z-10 sm:text-sm ${
+                  errors.email ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
+                }`}
                 placeholder="Enter your email"
               />
+              {errors.email && <p className="mt-1 text-xs text-red-700">{errors.email}</p>}
             </div>
 
             <div>
@@ -93,10 +112,17 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 required
                 value={password}
-                onChange={(e) => { clearError(); setPassword(e.target.value); }}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                onChange={(e) => {
+                  clearError();
+                  setPassword(e.target.value);
+                  setErrors((current) => ({ ...current, password: undefined, form: undefined }));
+                }}
+                className={`appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:z-10 sm:text-sm ${
+                  errors.password ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
+                }`}
                 placeholder="Enter your password"
               />
+              {errors.password && <p className="mt-1 text-xs text-red-700">{errors.password}</p>}
             </div>
           </div>
 

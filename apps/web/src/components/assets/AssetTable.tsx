@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getInsuranceReportPdf } from '@/lib/api';
 import { StateCard } from '@/components/ui/state-card';
+import { useToast } from '@/contexts/ToastContext';
 
 interface AssetTableProps {
   items: Item[];
@@ -142,6 +143,7 @@ function SortIcon({ sorted }: { sorted: false | 'asc' | 'desc' }) {
  */
 export function AssetTable({ items, loading = false }: AssetTableProps) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -323,11 +325,21 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
   const handleExportCsv = (): void => {
     if (exportRows.length === 0) return;
     exportAsCsv(exportRows, `assets-${new Date().toISOString().slice(0, 10)}.csv`);
+    showToast({
+      variant: 'success',
+      title: 'CSV exported',
+      description: 'Asset export has been downloaded.',
+    });
   };
 
   const handleExportExcel = async (): Promise<void> => {
     if (exportRows.length === 0) return;
     await exportAsExcel(exportRows, `assets-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    showToast({
+      variant: 'success',
+      title: 'Excel exported',
+      description: 'Asset export has been downloaded.',
+    });
   };
 
   const handleExportInsuranceReport = async (): Promise<void> => {
@@ -337,10 +349,19 @@ export function AssetTable({ items, loading = false }: AssetTableProps) {
       const categoryIds = categoryFilter !== 'all' ? [categoryFilter] : undefined;
       const blob = await getInsuranceReportPdf(categoryIds);
       downloadBlob(blob, `insurance-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+      showToast({
+        variant: 'success',
+        title: 'Insurance report ready',
+        description: 'The PDF report has been downloaded.',
+      });
     } catch (error: unknown) {
-      setInsuranceReportError(
-        error instanceof Error ? error.message : 'Failed to export insurance report'
-      );
+      const message = error instanceof Error ? error.message : 'Failed to export insurance report';
+      setInsuranceReportError(message);
+      showToast({
+        variant: 'error',
+        title: 'Insurance export failed',
+        description: message,
+      });
     } finally {
       setIsExportingInsuranceReport(false);
     }
