@@ -11,6 +11,7 @@ import { ItemsModule } from './items/items.module';
 import { SharingModule } from './sharing/sharing.module';
 import { ReportsModule } from './reports/reports.module';
 import { RemindersModule } from './reminders/reminders.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
 import { DatabaseSeedService } from './database/database-seed.service';
 import { User } from './users/entities/user.entity';
 import { Item } from './items/entities/item.entity';
@@ -42,6 +43,7 @@ import { AppService } from './app.service';
     SharingModule,
     ReportsModule,
     RemindersModule,
+    MarketplaceModule,
   ],
   controllers: [AppController],
   providers: [
