@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, Download, FileText } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getInsuranceReportPdf, getMyItems, getMyPortfolioValue } from '@/lib/api';
 import { CATEGORY_LABELS, type ItemCategory } from '@/types/items';
@@ -103,7 +103,19 @@ export default function ReportsPage() {
     }
   };
 
-  if (authLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md">
+          <StateCard
+            variant="loading"
+            title="Preparing reports"
+            description="Checking your session and loading report tools."
+          />
+        </div>
+      </div>
+    );
+  }
   if (!user) return null;
 
   return (

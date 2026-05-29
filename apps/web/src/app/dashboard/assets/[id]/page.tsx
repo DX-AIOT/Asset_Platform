@@ -11,6 +11,7 @@ import { CATEGORY_LABELS, CONDITION_LABELS } from '@/types/items';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Package } from 'lucide-react';
+import { StateCard } from '@/components/ui/state-card';
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -46,6 +47,7 @@ export default function AssetDetailPage() {
   useEffect(() => {
     if (!user || !id) return;
     setLoading(true);
+    setError(null);
     getItem(id)
       .then(setItem)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load asset'))
@@ -54,8 +56,14 @@ export default function AssetDetailPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md">
+          <StateCard
+            variant="loading"
+            title="Loading asset details"
+            description="Preparing item profile and valuation data."
+          />
+        </div>
       </div>
     );
   }
@@ -96,9 +104,13 @@ export default function AssetDetailPage() {
         </div>
 
         {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
+          <StateCard
+            variant="error"
+            title="Could not load this asset"
+            description={error}
+            actionLabel="Try again"
+            onAction={() => router.refresh()}
+          />
         ) : item ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             {/* Header */}
@@ -166,7 +178,15 @@ export default function AssetDetailPage() {
               </div>
             )}
           </div>
-        ) : null}
+        ) : (
+          <StateCard
+            variant="empty"
+            title="Asset not found"
+            description="This item may have been deleted or is no longer accessible."
+            actionLabel="Back to Assets"
+            onAction={() => router.push('/dashboard/assets')}
+          />
+        )}
       </main>
     </div>
   );

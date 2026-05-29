@@ -9,6 +9,7 @@ import { AssetTable } from '@/components/assets/AssetTable';
 import type { Item } from '@/types/items';
 import { Button } from '@/components/ui/button';
 import { Plus, RefreshCw } from 'lucide-react';
+import { StateCard } from '@/components/ui/state-card';
 
 export default function AssetsPage() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -41,7 +42,17 @@ export default function AssetsPage() {
   }, [user, fetchItems]);
 
   if (authLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md">
+          <StateCard
+            variant="loading"
+            title="Loading your assets"
+            description="We are fetching your latest inventory."
+          />
+        </div>
+      </div>
+    );
   }
 
   if (!user) return null;
@@ -112,12 +123,15 @@ export default function AssetsPage() {
         </div>
 
         {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            <strong>Error:</strong> {error}
-            <button onClick={fetchItems} className="ml-2 underline hover:no-underline">
-              Retry
-            </button>
-          </div>
+          <StateCard
+            variant="error"
+            title="Could not load assets"
+            description={error}
+            actionLabel="Try again"
+            onAction={() => {
+              void fetchItems();
+            }}
+          />
         ) : (
           <AssetTable items={items} loading={loading} />
         )}
