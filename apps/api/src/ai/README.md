@@ -7,6 +7,7 @@ the `/ai` route prefix and is wired through `AiModule`.
 | Capability | Endpoint | Service | External model |
 |------------|----------|---------|----------------|
 | Vision recognition | `POST /ai/recognize` | `VisionRecognitionService` | OpenAI `gpt-4o-mini` |
+| Condition assessment | `POST /ai/condition-assessment` | `ConditionAssessmentService` | OpenAI `gpt-4o-mini` (configurable) |
 | OCR receipt/invoice | `POST /ai/ocr-receipt` | `OcrReceiptService` | OpenAI `gpt-4.1-mini` (configurable) |
 | Market price valuation | `POST /ai/valuation` | `MarketValuationService` | none (local corpus) |
 | Barcode/QR lookup | `POST /ai/barcode-lookup` | `BarcodeLookupService` | none (local corpus) |
@@ -55,6 +56,55 @@ confidence.
 | No API key / `OPENAI_LOCAL_MODE=true` | `mockRecognitionResult` → all fields null, `category='other'@0.4`, `fallbackSuggested=true` |
 | Low confidence / missing name or model | Real model values returned, `fallbackSuggested=true` |
 | Model returns valid high-confidence JSON | Values returned, `fallbackSuggested=false` |
+
+**Complexity:** `O(1)` local processing + one model inference request.
+
+---
+
+## 1b. Condition Assessment Pipeline
+
+**Service:** `condition-assessment.service.ts` ·
+**Endpoint:** `POST /ai/condition-assessment`
+
+Grades the **physical condition** of an asset from a photo — distinct from
+vision recognition (which identifies *what* the asset is).
+
+### How it works
+
+1. Accepts `ConditionAssessmentDto`: an optional `itemId` plus a photo as either
+   `photoUrl` **or** `imageBase64` (+ `mimeType` ∈ `image/png|jpeg|webp`). One
+   image source is required → else `400 BadRequest`.
+2. In local-mock mode (no API key / `OPENAI_LOCAL_MODE=true`), returns a
+   deterministic stub (`condition: 'good'`, `confidence: 0`,
+   `fallbackSuggested: true`).
+3. Otherwise calls OpenAI's `responses` API with model **`gpt-4o-mini`** (override
+   via `OPENAI_VISION_MODEL`), pinning a **strict JSON schema**
+   (`condition_assessment`) so the model must return
+   `condition ∈ {excellent, good, fair, poor}`, a `0..1` `confidence`, and a
+   short `notes` string. `max_output_tokens: 300`.
+4. The system prompt anchors each grade to concrete visual evidence — visible
+   wear, scratches, dents, cracks, damage, missing parts, and cleanliness.
+5. `normalize()` validates the grade (case-insensitive), clamps confidence to
+   `[0,1]`, and trims notes. An unknown/missing grade degrades to **`fair` with
+   `confidence: 0` and `fallbackSuggested: true`** rather than throwing.
+
+### Persistence & integration
+
+- When `itemId` is supplied and the item exists, the assessed grade is written to
+  `Item.condition` via `ConditionAssessmentService.toItemCondition(...)`:
+  `excellent → like_new · good → good · fair → fair · poor → poor` (the storage
+  enum has no `excellent`, so it maps to its nearest member `like_new`). A missing
+  item is a no-op — the assessment is still returned.
+- **Auto-assess on capture:** the item create/update flow can call this right
+  after AI capture to populate `condition` automatically. The standalone endpoint
+  is the integration seam FrontendDev consumes; once a write-side item
+  create/update endpoint lands, wire `assess()` into it (see DXS-90 follow-up).
+
+### Response (`ConditionAssessmentResult` from `@dx-aiot/shared`)
+
+`condition` (`excellent|good|fair|poor`), `confidence` (`0..1`), `notes`
+(reasoning), `fallbackSuggested` (`true` when a neutral default was used), and
+`latencyMs`.
 
 **Complexity:** `O(1)` local processing + one model inference request.
 
@@ -237,7 +287,8 @@ All AI config is read via `ConfigService` (env vars). Boolean vars accept
 | `OPENAI_LOCAL_MODE` | Vision, OCR | `true` when no key, else `false` | Force deterministic local mock; **no cloud call**. Keep `true` for offline dev/CI/Docker. |
 | `OPENAI_API_KEY` | Vision, OCR | — | Required only when `OPENAI_LOCAL_MODE=false`. |
 | `OPENAI_BASE_URL` | Vision, OCR | `https://api.openai.com/v1` | Point at OpenAI or an OpenAI-compatible gateway. |
-| `OPENAI_OCR_MODEL` | OCR | `gpt-4.1-mini` | Override the OCR model. (Vision model `gpt-4o-mini` is currently hardcoded.) |
+| `OPENAI_OCR_MODEL` | OCR | `gpt-4.1-mini` | Override the OCR model. (Recognition vision model `gpt-4o-mini` is currently hardcoded.) |
+| `OPENAI_VISION_MODEL` | Condition assessment | `gpt-4o-mini` | Override the condition-assessment vision model. |
 | `REDIS_URL` | Valuation cache | — | Enables Redis-backed 24h cache; absent → in-memory TTL map. |
 | `VALUATION_CACHE_DISABLED` | Valuation cache | `false` | Disable Redis entirely (force in-memory). |
 
@@ -296,7 +347,8 @@ Valuation / barcode / auto-category need **no** configuration.
 | File | Responsibility |
 |------|----------------|
 | `ai.module.ts` | DI wiring for all AI services/controllers |
-| `ai.controller.ts` | `recognize`, `barcode-lookup`, `valuation` routes |
+| `ai.controller.ts` | `recognize`, `barcode-lookup`, `valuation`, `condition-assessment` routes |
+| `condition-assessment.service.ts` | OpenAI condition grading + local mock + Item persistence |
 | `ocr-receipt.controller.ts` | `ocr-receipt` route |
 | `asset-intelligence.controller.ts` | `auto-category-duplicate` route |
 | `vision-recognition.service.ts` | OpenAI vision categorization + local mock |

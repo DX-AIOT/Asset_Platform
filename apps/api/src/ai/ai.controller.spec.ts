@@ -4,6 +4,7 @@ import { VisionRecognitionService } from './vision-recognition.service';
 import { BarcodeLookupService } from './barcode-lookup.service';
 import { MarketValuationService } from './market-valuation.service';
 import { ValuationCacheService } from './valuation-cache.service';
+import { ConditionAssessmentService } from './condition-assessment.service';
 
 describe('AiController', () => {
   const createController = () => {
@@ -24,13 +25,23 @@ describe('AiController', () => {
       get: () => undefined,
     } as never);
     const valuationService = new MarketValuationService(cacheService);
+    const conditionService = {
+      assess: jest.fn().mockResolvedValue({
+        condition: 'good',
+        confidence: 0.8,
+        notes: 'Light wear.',
+        fallbackSuggested: false,
+        latencyMs: 50,
+      }),
+    } as unknown as ConditionAssessmentService;
     const controller = new AiController(
       mockVisionService,
       barcodeService,
       valuationService,
+      conditionService,
     );
 
-    return { controller, mockVisionService };
+    return { controller, mockVisionService, conditionService };
   };
 
   it('forwards image payload to recognition service', async () => {
@@ -80,5 +91,19 @@ describe('AiController', () => {
     expect(result.currency).toBe('USD');
     expect(['high', 'medium', 'low']).toContain(result.confidence);
     expect(result.comparables.length).toBeGreaterThan(0);
+  });
+
+  it('forwards condition assessment requests to the service', async () => {
+    const { controller, conditionService } = createController();
+    const result = await controller.conditionAssessment({
+      itemId: 'item-1',
+      photoUrl: 'https://example.com/p.jpg',
+    });
+
+    expect(conditionService.assess).toHaveBeenCalledWith({
+      itemId: 'item-1',
+      photoUrl: 'https://example.com/p.jpg',
+    });
+    expect(result.condition).toBe('good');
   });
 });
