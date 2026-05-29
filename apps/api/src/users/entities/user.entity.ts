@@ -42,6 +42,9 @@ export class User {
   @Column({ nullable: true })
   refreshToken: string;
 
+  @Column({ nullable: true })
+  fcmToken: string;
+
   @Column({ default: true })
   isActive: boolean;
 
