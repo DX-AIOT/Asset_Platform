@@ -207,7 +207,13 @@ export default function AddItem() {
     return true;
   };
 
+  const MAX_PHOTOS = 10;
+
   const pickImageFromCamera = async () => {
+    if (photos.length >= MAX_PHOTOS) {
+      Alert.alert('Limit reached', `You can add up to ${MAX_PHOTOS} photos per item.`);
+      return;
+    }
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
 
@@ -219,24 +225,35 @@ export default function AddItem() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setPhotos((current) => [...current, result.assets[0].uri]);
+      setPhotos((current) => {
+        if (current.length >= MAX_PHOTOS) return current;
+        return [...current, result.assets[0].uri];
+      });
     }
   };
 
   const pickImageFromGallery = async () => {
+    if (photos.length >= MAX_PHOTOS) {
+      Alert.alert('Limit reached', `You can add up to ${MAX_PHOTOS} photos per item.`);
+      return;
+    }
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
+      selectionLimit: MAX_PHOTOS,
       aspect: [4, 3],
       quality: 0.8,
     });
 
     if (!result.canceled) {
       const newPhotos = result.assets.map((asset: ImagePicker.ImagePickerAsset) => asset.uri);
-      setPhotos((current) => [...current, ...newPhotos]);
+      setPhotos((current) => {
+        const remaining = MAX_PHOTOS - current.length;
+        return [...current, ...newPhotos.slice(0, remaining)];
+      });
     }
   };
 
@@ -351,7 +368,9 @@ export default function AddItem() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photos</Text>
+          <Text style={styles.sectionTitle}>
+            Photos{photos.length > 0 ? ` (${photos.length}/${MAX_PHOTOS})` : ''}
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
             {photos.map((uri: string, index: number) => (
               <View key={index} style={styles.photoWrapper}>
@@ -383,10 +402,12 @@ export default function AddItem() {
                 </TouchableOpacity>
               </View>
             ))}
-            <TouchableOpacity style={styles.addPhotoButton} onPress={showPhotoOptions}>
-              <Text style={styles.addPhotoText}>+</Text>
-              <Text style={styles.addPhotoLabel}>Add Photo</Text>
-            </TouchableOpacity>
+            {photos.length < MAX_PHOTOS && (
+              <TouchableOpacity style={styles.addPhotoButton} onPress={showPhotoOptions}>
+                <Text style={styles.addPhotoText}>+</Text>
+                <Text style={styles.addPhotoLabel}>Add Photo</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
 
