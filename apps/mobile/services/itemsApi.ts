@@ -1,6 +1,6 @@
 import { api } from './api';
 import * as FileSystem from 'expo-file-system';
-import { CreateItemDto, Item, ItemCategory } from '../types/item';
+import { CreateItemDto, Item, ItemCategory, PriceHistoryResponse } from '../types/item';
 
 export interface ItemsResponse {
   items: Item[];
@@ -54,6 +54,9 @@ export const itemsApi = {
   create: (data: CreateItemDto) =>
     api.post<Item>('/items', data),
 
+  update: (id: string, data: Partial<CreateItemDto>) =>
+    api.patch<Item>(`/items/${id}`, data),
+
   getMyItems: (filters?: ItemFilters) => {
     const params = new URLSearchParams();
     if (filters?.category) params.append('category', filters.category);
@@ -64,6 +67,9 @@ export const itemsApi = {
 
   getItemById: (id: string) =>
     api.get<Item>(`/items/${id}`),
+
+  getPriceHistory: (id: string) =>
+    api.get<PriceHistoryResponse>(`/items/${id}/price-history`),
 
   getTotalValue: () =>
     api.get<{ total: number; depreciated: number }>('/items/my/value'),

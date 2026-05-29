@@ -10,10 +10,10 @@ import {
   TextInput,
   Pressable,
 } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { itemsApi } from '../../services/itemsApi';
 import { remindersApi } from '../../services/remindersApi';
-import { Item, CATEGORY_LABELS } from '../../types/item';
+import { Item, CATEGORY_LABELS, PriceHistoryPoint, PriceHistoryResponse, TrendWindow } from '../../types/item';
 import { MaintenanceReminder } from '../../types/reminder';
 
 const { width } = Dimensions.get('window');
@@ -26,13 +26,53 @@ const CONDITION_LABELS: Record<string, string> = {
   poor: 'Poor',
 };
 
+const SPARKLINE_HEIGHT = 76;
+const SPARKLINE_WIDTH = width - 88;
+
+const getTrendArrow = (direction: TrendWindow['direction']): string => {
+  if (direction === 'up') return '↑';
+  if (direction === 'down') return '↓';
+  return '→';
+};
+
+const getTrendColor = (direction: TrendWindow['direction']): string => {
+  if (direction === 'up') return '#0a7d3c';
+  if (direction === 'down') return '#b42318';
+  return '#666';
+};
+
+const formatPercent = (value: number): string => {
+  const rounded = Math.abs(value).toFixed(1);
+  return `${value >= 0 ? '+' : '-'}${rounded}%`;
+};
+
+const buildSparkPoints = (points: PriceHistoryPoint[]) => {
+  if (points.length < 2) return [];
+
+  const values = points.map((point) => Number(point.estimatedValue));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const denominator = max - min || 1;
+  const gap = SPARKLINE_WIDTH / (points.length - 1);
+
+  return points.map((point, index) => {
+    const x = index * gap;
+    const normalizedY = (Number(point.estimatedValue) - min) / denominator;
+    const y = SPARKLINE_HEIGHT - normalizedY * SPARKLINE_HEIGHT;
+    return { x, y };
+  });
+};
+
 export default function ItemDetail() {
+  const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const id = params.id as string;
   const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
   const [remindersLoading, setRemindersLoading] = useState(true);
   const [reminders, setReminders] = useState<MaintenanceReminder[]>([]);
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryResponse | null>(null);
+  const [priceHistoryLoading, setPriceHistoryLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [intervalDays, setIntervalDays] = useState('30');
   const [notes, setNotes] = useState('');
@@ -50,17 +90,20 @@ export default function ItemDetail() {
 
   const fetchItem = async () => {
     try {
-      const [itemResponse, remindersResponse] = await Promise.all([
+      const [itemResponse, remindersResponse, priceHistoryResponse] = await Promise.all([
         itemsApi.getItemById(id),
         remindersApi.listByItem(id),
+        itemsApi.getPriceHistory(id),
       ]);
       setItem(itemResponse.data);
       setReminders(sortByDueAt(remindersResponse.data));
+      setPriceHistory(priceHistoryResponse.data);
     } catch (fetchError) {
       console.error('Failed to fetch item details:', fetchError);
     } finally {
       setLoading(false);
       setRemindersLoading(false);
+      setPriceHistoryLoading(false);
     }
   };
 
@@ -124,6 +167,14 @@ export default function ItemDetail() {
     );
   }
 
+  const trend30d = priceHistory?.trends.find((trend) => trend.windowDays === 30);
+  const sparkPoints = buildSparkPoints(priceHistory?.points ?? []);
+  const hasPriceData = Boolean(
+    priceHistory &&
+    priceHistory.latestValue !== null &&
+    priceHistory.points.length > 0,
+  );
+
   return (
     <>
       <Stack.Screen options={{ title: item.name }} />
@@ -154,6 +205,12 @@ export default function ItemDetail() {
           <View style={styles.section}>
             <Text style={styles.name}>{item.name}</Text>
             {item.brand && <Text style={styles.brand}>{item.brand}</Text>}
+            <Pressable
+              style={styles.editButton}
+              onPress={() => router.push({ pathname: '/(app)/add-item', params: { itemId: id } })}
+            >
+              <Text style={styles.editButtonText}>Edit Item</Text>
+            </Pressable>
           </View>
 
           <View style={styles.section}>
@@ -198,6 +255,62 @@ export default function ItemDetail() {
               <Text style={styles.priceValue}>${Number(item.purchasePrice).toLocaleString()}</Text>
             </View>
           )}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Price Trend</Text>
+            {priceHistoryLoading ? (
+              <ActivityIndicator size="small" color="#007AFF" />
+            ) : !hasPriceData ? (
+              <Text style={styles.emptyText}>No price history yet.</Text>
+            ) : (
+              <View style={styles.chartCard}>
+                <Text style={styles.latestValue}>
+                  ${Number(priceHistory?.latestValue ?? 0).toLocaleString()}
+                </Text>
+                <Text style={styles.latestValueLabel}>Latest estimated value</Text>
+
+                <View style={styles.sparkline}>
+                  {sparkPoints.map((point, index) => {
+                    if (index === 0) return null;
+                    const prev = sparkPoints[index - 1];
+                    const deltaX = point.x - prev.x;
+                    const deltaY = point.y - prev.y;
+                    const segmentLength = Math.sqrt(deltaX ** 2 + deltaY ** 2);
+                    const angle = (Math.atan2(deltaY, deltaX) * 180) / Math.PI;
+
+                    return (
+                      <View
+                        key={`${point.x}-${point.y}`}
+                        style={[
+                          styles.sparkSegment,
+                          {
+                            width: segmentLength,
+                            left: prev.x,
+                            top: prev.y,
+                            transform: [{ rotate: `${angle}deg` }],
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
+
+                {trend30d ? (
+                  <View style={styles.trendRow}>
+                    <Text style={[styles.trendArrow, { color: getTrendColor(trend30d.direction) }]}>
+                      {getTrendArrow(trend30d.direction)}
+                    </Text>
+                    <Text style={[styles.trendValue, { color: getTrendColor(trend30d.direction) }]}>
+                      {formatPercent(trend30d.percentChange)}
+                    </Text>
+                    <Text style={styles.trendWindow}>30d</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.emptyText}>30-day trend unavailable.</Text>
+                )}
+              </View>
+            )}
+          </View>
 
           {item.purchaseDate && (
             <View style={styles.section}>
@@ -336,6 +449,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#666',
   },
+  editButton: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    backgroundColor: '#eef2ff',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  editButtonText: {
+    color: '#1d4ed8',
+    fontWeight: '600',
+    fontSize: 13,
+  },
   row: {
     flexDirection: 'row',
     gap: 12,
@@ -373,6 +499,55 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#007AFF',
+  },
+  latestValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111',
+  },
+  latestValueLabel: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 12,
+  },
+  chartCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: '#fcfcfc',
+  },
+  sparkline: {
+    height: SPARKLINE_HEIGHT,
+    width: SPARKLINE_WIDTH,
+    backgroundColor: '#f4f7fb',
+    borderRadius: 8,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  sparkSegment: {
+    position: 'absolute',
+    height: 2,
+    backgroundColor: '#007AFF',
+  },
+  trendRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trendArrow: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  trendValue: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  trendWindow: {
+    fontSize: 13,
+    color: '#666',
   },
   notes: {
     fontSize: 16,

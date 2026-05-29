@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,45 @@ import {
   Image,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { itemsApi } from '../../services/itemsApi';
 import { aiApi } from '../../services/aiApi';
-import { ItemCategory, CATEGORY_LABELS, LOCATION_OPTIONS } from '../../types/item';
+import { CATEGORY_LABELS, ItemCategory, ItemCondition, LOCATION_OPTIONS } from '../../types/item';
+
+const CONDITION_LABELS: Record<ItemCondition, string> = {
+  [ItemCondition.NEW]: 'New',
+  [ItemCondition.LIKE_NEW]: 'Like New',
+  [ItemCondition.GOOD]: 'Good',
+  [ItemCondition.FAIR]: 'Fair',
+  [ItemCondition.POOR]: 'Poor',
+};
+
+const CONDITION_ORDER: ItemCondition[] = [
+  ItemCondition.NEW,
+  ItemCondition.LIKE_NEW,
+  ItemCondition.GOOD,
+  ItemCondition.FAIR,
+  ItemCondition.POOR,
+];
+
+const mapAssessedToItemCondition = (
+  assessed: 'excellent' | 'good' | 'fair' | 'poor',
+): ItemCondition => {
+  if (assessed === 'excellent') return ItemCondition.LIKE_NEW;
+  if (assessed === 'good') return ItemCondition.GOOD;
+  if (assessed === 'fair') return ItemCondition.FAIR;
+  return ItemCondition.POOR;
+};
 
 export default function AddItem() {
   const router = useRouter();
-  const { scannedBarcode } = useLocalSearchParams<{ scannedBarcode?: string }>();
+  const { scannedBarcode, itemId } = useLocalSearchParams<{ scannedBarcode?: string; itemId?: string }>();
+  const isEditMode = useMemo(() => Boolean(itemId), [itemId]);
   const [loading, setLoading] = useState(false);
+  const [loadingItem, setLoadingItem] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -29,6 +57,7 @@ export default function AddItem() {
     serial: '',
     purchaseDate: '',
     purchasePrice: '',
+    condition: ItemCondition.GOOD,
     location: '',
     notes: '',
   });
@@ -36,7 +65,11 @@ export default function AddItem() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [showConditionPicker, setShowConditionPicker] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [assessmentLoading, setAssessmentLoading] = useState(false);
+  const [assessmentSummary, setAssessmentSummary] = useState<string | null>(null);
+  const [conditionTouched, setConditionTouched] = useState(false);
 
   const mapProductCategoryToItemCategory = (rawCategory: string): ItemCategory => {
     const normalized = rawCategory.toLowerCase();
@@ -44,6 +77,37 @@ export default function AddItem() {
     if (normalized.includes('computer') || normalized.includes('peripheral')) return ItemCategory.ELECTRONICS;
     return ItemCategory.OTHER;
   };
+
+  useEffect(() => {
+    if (!itemId) return;
+
+    const loadItem = async () => {
+      setLoadingItem(true);
+      try {
+        const response = await itemsApi.getItemById(itemId);
+        const current = response.data;
+        setFormData({
+          name: current.name,
+          brand: current.brand ?? '',
+          model: current.model ?? '',
+          category: current.category,
+          serial: current.serial ?? '',
+          purchaseDate: current.purchaseDate ?? '',
+          purchasePrice: current.purchasePrice ? String(current.purchasePrice) : '',
+          condition: current.condition,
+          location: current.location ?? '',
+          notes: current.notes ?? '',
+        });
+        setPhotos(current.photos ?? []);
+      } catch {
+        Alert.alert('Error', 'Failed to load item details.');
+      } finally {
+        setLoadingItem(false);
+      }
+    };
+
+    void loadItem();
+  }, [itemId]);
 
   useEffect(() => {
     const barcode = scannedBarcode?.trim();
@@ -92,11 +156,34 @@ export default function AddItem() {
     void runLookup();
   }, [scannedBarcode]);
 
+  useEffect(() => {
+    const firstPhoto = photos[0];
+    if (!firstPhoto || conditionTouched) return;
+
+    const runConditionAssessment = async () => {
+      setAssessmentLoading(true);
+      try {
+        const result = await aiApi.assessCondition(firstPhoto, itemId);
+        const nextCondition = mapAssessedToItemCondition(result.condition);
+        setFormData((current) => ({ ...current, condition: nextCondition }));
+        setAssessmentSummary(
+          `AI suggested ${CONDITION_LABELS[nextCondition]} (${Math.round(result.confidence * 100)}%)`,
+        );
+      } catch {
+        setAssessmentSummary('Could not auto-assess condition. You can set it manually.');
+      } finally {
+        setAssessmentLoading(false);
+      }
+    };
+
+    void runConditionAssessment();
+  }, [photos, conditionTouched, itemId]);
+
   const requestPermissions = async () => {
     if (Platform.OS !== 'web') {
       const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
       const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (cameraStatus !== 'granted' || mediaStatus !== 'granted') {
         Alert.alert(
           'Permissions Required',
@@ -136,7 +223,7 @@ export default function AddItem() {
     });
 
     if (!result.canceled) {
-      const newPhotos = result.assets.map(asset => asset.uri);
+      const newPhotos = result.assets.map((asset: ImagePicker.ImagePickerAsset) => asset.uri);
       setPhotos((current) => [...current, ...newPhotos]);
     }
   };
@@ -186,22 +273,35 @@ export default function AddItem() {
         serial: formData.serial || undefined,
         purchaseDate: formData.purchaseDate || undefined,
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
+        condition: formData.condition,
         location: formData.location || undefined,
         notes: formData.notes || undefined,
         photos: photos.length > 0 ? photos : undefined,
       };
 
-      await itemsApi.create(itemData);
-      
-      Alert.alert('Success', 'Item added successfully', [
+      if (itemId) {
+        await itemsApi.update(itemId, itemData);
+      } else {
+        await itemsApi.create(itemData);
+      }
+
+      Alert.alert('Success', isEditMode ? 'Item updated successfully' : 'Item added successfully', [
         { text: 'OK', onPress: () => router.back() },
       ]);
-    } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to add item');
+    } catch {
+      Alert.alert('Error', isEditMode ? 'Failed to update item' : 'Failed to add item');
     } finally {
       setLoading(false);
     }
   };
+
+  if (loadingItem) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -209,9 +309,9 @@ export default function AddItem() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>Cancel</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Item</Text>
-        <TouchableOpacity 
-          onPress={handleSubmit} 
+        <Text style={styles.headerTitle}>{isEditMode ? 'Edit Item' : 'Add Item'}</Text>
+        <TouchableOpacity
+          onPress={handleSubmit}
           style={styles.saveButton}
           disabled={loading}
         >
@@ -238,7 +338,6 @@ export default function AddItem() {
           </TouchableOpacity>
         </View>
 
-        {/* Photos Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
@@ -279,10 +378,9 @@ export default function AddItem() {
           </ScrollView>
         </View>
 
-        {/* Basic Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Name *</Text>
             <TextInput
@@ -344,6 +442,36 @@ export default function AddItem() {
           </View>
 
           <View style={styles.inputGroup}>
+            <Text style={styles.label}>Condition</Text>
+            <TouchableOpacity
+              style={styles.picker}
+              onPress={() => setShowConditionPicker(!showConditionPicker)}
+            >
+              <Text style={styles.pickerText}>{CONDITION_LABELS[formData.condition]}</Text>
+              <Text style={styles.pickerArrow}>▼</Text>
+            </TouchableOpacity>
+            {showConditionPicker && (
+              <View style={styles.pickerOptions}>
+                {CONDITION_ORDER.map((condition) => (
+                  <TouchableOpacity
+                    key={condition}
+                    style={styles.pickerOption}
+                    onPress={() => {
+                      setConditionTouched(true);
+                      setFormData({ ...formData, condition });
+                      setShowConditionPicker(false);
+                    }}
+                  >
+                    <Text style={styles.pickerOptionText}>{CONDITION_LABELS[condition]}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {assessmentLoading ? <Text style={styles.hintText}>Assessing from first photo...</Text> : null}
+            {assessmentSummary ? <Text style={styles.hintText}>{assessmentSummary}</Text> : null}
+          </View>
+
+          <View style={styles.inputGroup}>
             <Text style={styles.label}>Serial Number</Text>
             <TextInput
               style={styles.input}
@@ -355,10 +483,9 @@ export default function AddItem() {
           </View>
         </View>
 
-        {/* Purchase Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Purchase Information</Text>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Purchase Date</Text>
             <TextInput
@@ -383,10 +510,9 @@ export default function AddItem() {
           </View>
         </View>
 
-        {/* Location */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Location</Text>
-          
+
           <View style={styles.inputGroup}>
             <TouchableOpacity
               style={styles.picker}
@@ -416,10 +542,9 @@ export default function AddItem() {
           </View>
         </View>
 
-        {/* Notes */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notes</Text>
-          
+
           <TextInput
             style={[styles.input, styles.textArea]}
             value={formData.notes}
@@ -441,6 +566,12 @@ export default function AddItem() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#fff',
   },
   header: {
@@ -631,6 +762,11 @@ const styles = StyleSheet.create({
   pickerOptionText: {
     fontSize: 16,
     color: '#000',
+  },
+  hintText: {
+    color: '#6b7280',
+    fontSize: 13,
+    marginTop: 8,
   },
   bottomSpacer: {
     height: 40,
