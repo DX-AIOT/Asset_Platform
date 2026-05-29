@@ -36,7 +36,10 @@ function makeService(items: any[]): { service: ItemsService; repo: any } {
   const conditionAssessmentService = {
     assess: jest.fn().mockResolvedValue(undefined),
   } as any;
-  return { service: new ItemsService(repo, conditionAssessmentService), repo };
+  const priceHistoryService = {
+    recordSnapshot: jest.fn().mockResolvedValue(null),
+  } as any;
+  return { service: new ItemsService(repo, conditionAssessmentService, priceHistoryService), repo };
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
