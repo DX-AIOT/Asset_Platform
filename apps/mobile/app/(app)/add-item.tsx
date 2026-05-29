@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { itemsApi } from '../../services/api';
+import { itemsApi } from '../../services/itemsApi';
 import { aiApi } from '../../services/aiApi';
 import { ItemCategory, CATEGORY_LABELS, LOCATION_OPTIONS } from '../../types/item';
 

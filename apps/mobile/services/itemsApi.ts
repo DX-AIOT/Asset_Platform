@@ -1,6 +1,6 @@
 import { api } from './api';
 import * as FileSystem from 'expo-file-system';
-import { Item, ItemCategory } from '../types/item';
+import { CreateItemDto, Item, ItemCategory } from '../types/item';
 
 export interface ItemsResponse {
   items: Item[];
@@ -51,6 +51,9 @@ const writeInventoryCache = async (cache: InventoryCache): Promise<void> => {
 };
 
 export const itemsApi = {
+  create: (data: CreateItemDto) =>
+    api.post<Item>('/items', data),
+
   getMyItems: (filters?: ItemFilters) => {
     const params = new URLSearchParams();
     if (filters?.category) params.append('category', filters.category);
