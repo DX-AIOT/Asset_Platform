@@ -69,6 +69,8 @@ export default function AddItem() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [assessmentLoading, setAssessmentLoading] = useState(false);
   const [assessmentSummary, setAssessmentSummary] = useState<string | null>(null);
+  const [assessmentNotes, setAssessmentNotes] = useState<string | null>(null);
+  const [assessmentNeedsReview, setAssessmentNeedsReview] = useState(false);
   const [conditionTouched, setConditionTouched] = useState(false);
 
   const mapProductCategoryToItemCategory = (rawCategory: string): ItemCategory => {
@@ -165,11 +167,19 @@ export default function AddItem() {
       try {
         const result = await aiApi.assessCondition(firstPhoto, itemId);
         const nextCondition = mapAssessedToItemCondition(result.condition);
+        const confidencePercent = Math.round(result.confidence * 100);
+        const requiresReview = result.fallbackSuggested || result.confidence === 0;
         setFormData((current) => ({ ...current, condition: nextCondition }));
+        setAssessmentNeedsReview(requiresReview);
         setAssessmentSummary(
-          `AI suggested ${CONDITION_LABELS[nextCondition]} (${Math.round(result.confidence * 100)}%)`,
+          requiresReview
+            ? `AI suggested ${CONDITION_LABELS[nextCondition]} (${confidencePercent}%). Please review manually.`
+            : `AI suggested ${CONDITION_LABELS[nextCondition]} (${confidencePercent}%).`,
         );
+        setAssessmentNotes(result.notes?.trim() ? result.notes.trim() : null);
       } catch {
+        setAssessmentNeedsReview(false);
+        setAssessmentNotes(null);
         setAssessmentSummary('Could not auto-assess condition. You can set it manually.');
       } finally {
         setAssessmentLoading(false);
@@ -468,7 +478,12 @@ export default function AddItem() {
               </View>
             )}
             {assessmentLoading ? <Text style={styles.hintText}>Assessing from first photo...</Text> : null}
-            {assessmentSummary ? <Text style={styles.hintText}>{assessmentSummary}</Text> : null}
+            {assessmentSummary ? (
+              <Text style={[styles.hintText, assessmentNeedsReview && styles.warningHintText]}>
+                {assessmentSummary}
+              </Text>
+            ) : null}
+            {assessmentNotes ? <Text style={styles.hintText}>Notes: {assessmentNotes}</Text> : null}
           </View>
 
           <View style={styles.inputGroup}>
@@ -605,6 +620,9 @@ const styles = StyleSheet.create({
   },
   disabledText: {
     opacity: 0.5,
+  },
+  warningHintText: {
+    color: '#B45309',
   },
   content: {
     flex: 1,
