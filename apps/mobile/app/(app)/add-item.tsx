@@ -169,7 +169,9 @@ export default function AddItem() {
         const nextCondition = mapAssessedToItemCondition(result.condition);
         const confidencePercent = Math.round(result.confidence * 100);
         const requiresReview = result.fallbackSuggested || result.confidence === 0;
-        setFormData((current) => ({ ...current, condition: nextCondition }));
+        if (!requiresReview) {
+          setFormData((current) => ({ ...current, condition: nextCondition }));
+        }
         setAssessmentNeedsReview(requiresReview);
         setAssessmentSummary(
           requiresReview
