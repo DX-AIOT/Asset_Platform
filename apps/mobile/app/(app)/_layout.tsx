@@ -28,6 +28,12 @@ export default function AppLayout() {
           headerLargeTitle: true,
         }}
       />
+      <Stack.Screen
+        name="sharing"
+        options={{
+          title: 'Family Sharing',
+        }}
+      />
     </Stack>
   );
 }

@@ -72,6 +72,18 @@ export default function Home() {
 
           <TouchableOpacity
             style={styles.actionButton}
+            onPress={() => router.push('/(app)/sharing')}
+          >
+            <Text style={styles.actionButtonIcon}>👥</Text>
+            <View style={styles.actionButtonContent}>
+              <Text style={styles.actionButtonTitle}>Family Sharing</Text>
+              <Text style={styles.actionButtonSubtitle}>Invite and access shared inventories</Text>
+            </View>
+            <Text style={styles.actionButtonArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
             onPress={() => router.push('/(app)/add-item')}
           >
             <Text style={styles.actionButtonIcon}>➕</Text>
