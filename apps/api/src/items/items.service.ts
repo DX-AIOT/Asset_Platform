@@ -2,7 +2,9 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConditionAssessmentService } from '../ai/condition-assessment.service';
+import { PriceHistoryService } from '../ai/price-history.service';
 import { Item, ItemCategory } from './entities/item.entity';
+import { PriceHistorySource } from './entities/price-history.entity';
 import {
   CreateItemDto,
   UpdateItemDto,
@@ -30,6 +32,7 @@ export class ItemsService {
     @InjectRepository(Item)
     private itemsRepository: Repository<Item>,
     private readonly conditionAssessmentService: ConditionAssessmentService,
+    private readonly priceHistoryService: PriceHistoryService,
   ) {}
 
   async create(dto: CreateItemDto, userId: string): Promise<Item> {
@@ -40,6 +43,8 @@ export class ItemsService {
     });
     const saved = await this.itemsRepository.save(item);
     this.triggerConditionAssessment(saved.id, saved.photos);
+    // Fire-and-forget initial price snapshot (best-effort; never throws).
+    void this.priceHistoryService.recordSnapshot(saved, PriceHistorySource.AI);
     return saved;
   }
 
