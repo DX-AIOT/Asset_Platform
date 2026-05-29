@@ -9,6 +9,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { CsrfGuard } from './guards/csrf.guard';
+import { CsrfService } from './csrf.service';
 
 @Module({
   imports: [
@@ -26,7 +28,7 @@ import { RolesGuard } from './guards/roles.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, GoogleStrategy, JwtAuthGuard, RolesGuard],
-  exports: [AuthService, JwtAuthGuard, RolesGuard],
+  providers: [AuthService, JwtStrategy, GoogleStrategy, JwtAuthGuard, RolesGuard, CsrfGuard, CsrfService],
+  exports: [AuthService, JwtAuthGuard, RolesGuard, CsrfGuard, CsrfService],
 })
 export class AuthModule {}
