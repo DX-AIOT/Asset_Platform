@@ -11,6 +11,9 @@ import { MarketValuationService } from './market-valuation.service';
 import { ValuationCacheService } from './valuation-cache.service';
 import { ConditionAssessmentService } from './condition-assessment.service';
 import { PriceHistoryService } from './price-history.service';
+import { ValuationRefreshService } from './valuation-refresh.service';
+import { MarketTrendsService } from './market-trends.service';
+import { MarketTrendsController } from './market-trends.controller';
 import { ListingSuggestionService } from './listing-suggestion.service';
 import { ListingSuggestionCacheService } from './listing-suggestion-cache.service';
 import { Item } from '../items/entities/item.entity';
@@ -18,7 +21,12 @@ import { PriceHistory } from '../items/entities/price-history.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Item, PriceHistory])],
-  controllers: [AiController, OcrReceiptController, AssetIntelligenceController],
+  controllers: [
+    AiController,
+    OcrReceiptController,
+    AssetIntelligenceController,
+    MarketTrendsController,
+  ],
   providers: [
     VisionRecognitionService,
     OcrReceiptService,
@@ -28,9 +36,11 @@ import { PriceHistory } from '../items/entities/price-history.entity';
     ValuationCacheService,
     ConditionAssessmentService,
     PriceHistoryService,
+    ValuationRefreshService,
+    MarketTrendsService,
     ListingSuggestionService,
     ListingSuggestionCacheService,
   ],
-  exports: [ConditionAssessmentService, PriceHistoryService],
+  exports: [ConditionAssessmentService, PriceHistoryService, MarketTrendsService],
 })
 export class AiModule {}

@@ -24,6 +24,23 @@ const FLAT_THRESHOLD_PERCENT = 0.5;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_CURRENCY = 'USD';
 
+/** A valuation is "stale" once its latest snapshot is older than this. */
+export const STALE_VALUATION_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+/** Items per batch in the nightly refresh — keeps AI/rate-limit pressure bounded. */
+export const VALUATION_REFRESH_BATCH_SIZE = 10;
+
+/** Outcome counters for one batch valuation-refresh run. */
+export interface ValuationRefreshSummary {
+  /** Total items considered. */
+  scanned: number;
+  /** Items whose valuation was re-recorded successfully. */
+  updated: number;
+  /** Items skipped because their valuation was still fresh. */
+  skipped: number;
+  /** Stale items whose re-valuation failed (snapshot not recorded). */
+  errors: number;
+}
+
 @Injectable()
 export class PriceHistoryService {
   private readonly logger = new Logger(PriceHistoryService.name);
@@ -80,6 +97,81 @@ export class PriceHistoryService {
       );
       return null;
     }
+  }
+
+  /**
+   * Re-value every item whose latest snapshot is older than 24h (or has none)
+   * and record a fresh `ai` snapshot for it. Items are processed in batches of
+   * {@link VALUATION_REFRESH_BATCH_SIZE} to bound AI/rate-limit pressure;
+   * per-item failures are swallowed by {@link recordSnapshot} and counted as
+   * errors so one bad item never aborts the run.
+   *
+   * Staleness is derived from the latest `price_history.recordedAt` per item —
+   * the Item entity carries no `lastValuationAt` column, and the append-only
+   * history is the single source of truth, so no schema change is needed. All
+   * items are treated as active (the entity has no soft-delete/status flag).
+   *
+   * Time: O(n) items + one GROUP BY over price_history; valuations run in
+   * batches of {@link VALUATION_REFRESH_BATCH_SIZE} concurrently.
+   *
+   * @param now reference time (injectable for testing).
+   */
+  async refreshStaleValuations(now: Date = new Date()): Promise<ValuationRefreshSummary> {
+    const items = await this.itemsRepository.find();
+    const lastValuationByItem = await this.latestValuationTimestamps();
+    const cutoff = now.getTime() - STALE_VALUATION_THRESHOLD_MS;
+
+    const stale = items.filter((item) => {
+      const last = lastValuationByItem.get(item.id);
+      return last == null || last.getTime() < cutoff;
+    });
+
+    let updated = 0;
+    let errors = 0;
+
+    for (let i = 0; i < stale.length; i += VALUATION_REFRESH_BATCH_SIZE) {
+      const batch = stale.slice(i, i + VALUATION_REFRESH_BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map((item) =>
+          this.recordSnapshot(item, PriceHistorySource.AI, { recordedAt: now }),
+        ),
+      );
+      for (const result of results) {
+        if (result) {
+          updated += 1;
+        } else {
+          errors += 1;
+        }
+      }
+    }
+
+    const summary: ValuationRefreshSummary = {
+      scanned: items.length,
+      updated,
+      skipped: items.length - stale.length,
+      errors,
+    };
+    this.logger.log(
+      `Valuation refresh: scanned=${summary.scanned} updated=${summary.updated} ` +
+        `skipped=${summary.skipped} errors=${summary.errors}`,
+    );
+    return summary;
+  }
+
+  /** Latest `recordedAt` per item, via a single GROUP BY over price_history. */
+  private async latestValuationTimestamps(): Promise<Map<string, Date>> {
+    const rows = await this.priceHistoryRepository
+      .createQueryBuilder('ph')
+      .select('ph.itemId', 'itemId')
+      .addSelect('MAX(ph.recordedAt)', 'lastAt')
+      .groupBy('ph.itemId')
+      .getRawMany<{ itemId: string; lastAt: string | Date }>();
+
+    const map = new Map<string, Date>();
+    for (const row of rows) {
+      map.set(row.itemId, new Date(row.lastAt));
+    }
+    return map;
   }
 
   /**
