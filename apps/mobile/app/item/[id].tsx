@@ -205,12 +205,20 @@ export default function ItemDetail() {
           <View style={styles.section}>
             <Text style={styles.name}>{item.name}</Text>
             {item.brand && <Text style={styles.brand}>{item.brand}</Text>}
-            <Pressable
-              style={styles.editButton}
-              onPress={() => router.push({ pathname: '/(app)/add-item', params: { itemId: id } })}
-            >
-              <Text style={styles.editButtonText}>Edit Item</Text>
-            </Pressable>
+            <View style={styles.itemActions}>
+              <Pressable
+                style={styles.editButton}
+                onPress={() => router.push({ pathname: '/(app)/add-item', params: { itemId: id } })}
+              >
+                <Text style={styles.editButtonText}>Edit Item</Text>
+              </Pressable>
+              <Pressable
+                style={styles.sellButton}
+                onPress={() => router.push({ pathname: '/listing/new', params: { itemId: id } })}
+              >
+                <Text style={styles.sellButtonText}>Sell This Item</Text>
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.section}>
@@ -449,8 +457,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#666',
   },
-  editButton: {
+  itemActions: {
+    flexDirection: 'row',
+    gap: 8,
     marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  editButton: {
     alignSelf: 'flex-start',
     backgroundColor: '#eef2ff',
     borderRadius: 999,
@@ -459,6 +472,18 @@ const styles = StyleSheet.create({
   },
   editButtonText: {
     color: '#1d4ed8',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  sellButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#fef3c7',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  sellButtonText: {
+    color: '#92400e',
     fontWeight: '600',
     fontSize: 13,
   },

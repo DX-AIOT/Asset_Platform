@@ -93,6 +93,18 @@ export default function Home() {
             </View>
             <Text style={styles.actionButtonArrow}>›</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/(app)/marketplace')}
+          >
+            <Text style={styles.actionButtonIcon}>🛍️</Text>
+            <View style={styles.actionButtonContent}>
+              <Text style={styles.actionButtonTitle}>Marketplace</Text>
+              <Text style={styles.actionButtonSubtitle}>Buy and sell with AI pricing</Text>
+            </View>
+            <Text style={styles.actionButtonArrow}>›</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>

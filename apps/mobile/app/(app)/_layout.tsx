@@ -52,6 +52,13 @@ export default function AppLayout() {
           title: 'Family Sharing',
         }}
       />
+      <Stack.Screen
+        name="marketplace"
+        options={{
+          title: 'Marketplace',
+          headerLargeTitle: true,
+        }}
+      />
     </Stack>
   );
 }
