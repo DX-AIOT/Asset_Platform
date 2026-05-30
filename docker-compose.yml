@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: asset_pass_dev
       POSTGRES_DB: asset_platform
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init-db:/docker-entrypoint-initdb.d
@@ -27,7 +27,7 @@ services:
     image: redis:7-alpine
     container_name: asset_platform_redis
     ports:
-      - '6379:6379'
+      - '6380:6379'
     volumes:
       - redis_data:/data
     healthcheck:
@@ -55,13 +55,12 @@ services:
       JWT_EXPIRES_IN: 7d
       REFRESH_TOKEN_SECRET: dev-refresh-secret-change-in-production
       REFRESH_TOKEN_EXPIRES_IN: 30d
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_LOCAL_MODE: ${OPENAI_LOCAL_MODE:-true}
+      OPENAI_OCR_MODEL: ${OPENAI_OCR_MODEL:-gpt-4.1-mini}
     ports:
-      - '3001:3001'
-    volumes:
-      - ./apps/api:/app/apps/api
-      - ./packages:/app/packages
-      - /app/node_modules
-      - /app/apps/api/node_modules
+      - '3002:3001'
     depends_on:
       postgres:
         condition: service_healthy
