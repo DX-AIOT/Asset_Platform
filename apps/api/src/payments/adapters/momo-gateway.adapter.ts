@@ -9,6 +9,7 @@ import {
   ReleaseEscrowResult,
   RefundBuyerParams,
   RefundBuyerResult,
+  IpnPayload,
 } from '../interfaces/payment-gateway.interface';
 
 @Injectable()
@@ -19,7 +20,7 @@ export class MoMoGatewayAdapter implements IPaymentGateway {
   private readonly secretKey: string;
   private readonly endpoint: string;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(config: ConfigService) {
     this.partnerCode = config.getOrThrow<string>('MOMO_PARTNER_CODE');
     this.accessKey = config.getOrThrow<string>('MOMO_ACCESS_KEY');
     this.secretKey = config.getOrThrow<string>('MOMO_SECRET_KEY');
@@ -166,6 +167,25 @@ export class MoMoGatewayAdapter implements IPaymentGateway {
       resultCode: data.resultCode,
       message: data.message,
     };
+  }
+
+  verifyIpnSignature(payload: IpnPayload): boolean {
+    const rawSignature = [
+      `accessKey=${this.accessKey}`,
+      `amount=${payload.amount}`,
+      `extraData=${payload.extraData}`,
+      `message=${payload.message}`,
+      `orderId=${payload.orderId}`,
+      `orderInfo=${payload.orderInfo}`,
+      `orderType=${payload.orderType}`,
+      `partnerCode=${payload.partnerCode}`,
+      `payType=${payload.payType}`,
+      `requestId=${payload.requestId}`,
+      `responseTime=${payload.responseTime}`,
+      `resultCode=${payload.resultCode}`,
+      `transId=${payload.transId}`,
+    ].join('&');
+    return this.sign(rawSignature) === payload.signature;
   }
 
   private sign(rawSignature: string): string {
