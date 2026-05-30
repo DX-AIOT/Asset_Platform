@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   UnprocessableEntityException,
+  InternalServerErrorException,
   Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -62,26 +63,40 @@ export class TransactionsService {
     });
     await this.txRepo.save(tx);
 
+    // Lock listing so concurrent buyers can't purchase the same item
+    listing.status = ListingStatus.INACTIVE;
+    await this.listingRepo.save(listing);
+
     const orderId = `DXS-${tx.id.replace(/-/g, '').slice(0, 16)}`;
     const requestId = `REQ-${tx.id.replace(/-/g, '').slice(0, 16)}`;
     const redirectUrl = this.config.getOrThrow<string>('MOMO_REDIRECT_URL');
     const ipnUrl = this.config.getOrThrow<string>('MOMO_IPN_URL');
 
-    const hold = await this.gateway.initiateEscrowHold({
-      orderId,
-      requestId,
-      amount: tx.amountVND,
-      orderInfo: `Purchase listing ${listingId}`,
-      redirectUrl,
-      ipnUrl,
-    });
+    let hold: Awaited<ReturnType<IPaymentGateway['initiateEscrowHold']>>;
+    try {
+      hold = await this.gateway.initiateEscrowHold({
+        orderId,
+        requestId,
+        amount: tx.amountVND,
+        orderInfo: `Purchase listing ${listingId}`,
+        redirectUrl,
+        ipnUrl,
+      });
+    } catch (err) {
+      this.logger.error(`initiateEscrowHold failed txId=${tx.id}: ${err}`);
+      tx.status = TransactionStatus.PAYMENT_FAILED;
+      await this.txRepo.save(tx);
+      listing.status = ListingStatus.ACTIVE;
+      await this.listingRepo.save(listing);
+      throw new InternalServerErrorException('Payment initiation failed — please try again');
+    }
 
     tx.momoOrderId = orderId;
     tx.momoRequestId = requestId;
     tx.momoPaymentUrl = hold.paymentUrl;
     await this.txRepo.save(tx);
 
-    return { transactionId: tx.id, payUrl: hold.paymentUrl, status: tx.status };
+    return { transactionId: tx.id, momoOrderId: orderId, payUrl: hold.paymentUrl, status: tx.status };
   }
 
   async getTransaction(id: string, userId: string): Promise<Transaction> {
@@ -109,6 +124,17 @@ export class TransactionsService {
     }
 
     if (payload.resultCode === 0) {
+      // Verify the paid amount matches what we initiated to prevent underpayment
+      if (Number(payload.amount) !== Number(tx.amountVND)) {
+        this.logger.error(
+          `IPN amount mismatch orderId=${payload.orderId} expected=${tx.amountVND} got=${payload.amount}`,
+        );
+        this.transition(tx, TransactionStatus.PAYMENT_FAILED);
+        await this.txRepo.save(tx);
+        await this.unlockListing(tx.listingId);
+        return;
+      }
+
       const autoReleaseDays = this.config.get<number>('ESCROW_AUTO_RELEASE_DAYS', 7);
       const autoReleaseMinutes = this.config.get<number>('ESCROW_AUTO_RELEASE_MINUTES');
       const releaseAfter = new Date();
@@ -122,13 +148,23 @@ export class TransactionsService {
       tx.momoTransId = String(payload.transId);
       tx.escrowHeldAt = new Date();
       tx.releaseAfter = releaseAfter;
+      await this.txRepo.save(tx);
       this.logger.log(`IPN success PENDING_PAYMENT→ESCROW_HELD orderId=${payload.orderId}`);
     } else {
       this.transition(tx, TransactionStatus.PAYMENT_FAILED);
+      await this.txRepo.save(tx);
+      await this.unlockListing(tx.listingId);
       this.logger.log(`IPN failed (${payload.resultCode}) PENDING_PAYMENT→PAYMENT_FAILED`);
     }
+  }
 
-    await this.txRepo.save(tx);
+  private async unlockListing(listingId: string): Promise<void> {
+    const listing = await this.listingRepo.findOne({ where: { id: listingId } });
+    if (listing && listing.status === ListingStatus.INACTIVE) {
+      listing.status = ListingStatus.ACTIVE;
+      await this.listingRepo.save(listing);
+      this.logger.log(`Listing unlocked listingId=${listingId}`);
+    }
   }
 
   async confirmReceipt(id: string, userId: string): Promise<Transaction> {
@@ -139,6 +175,13 @@ export class TransactionsService {
     this.transition(tx, TransactionStatus.RELEASED_TO_SELLER);
     tx.releasedAt = new Date();
     await this.txRepo.save(tx);
+
+    const listing = await this.listingRepo.findOne({ where: { id: tx.listingId } });
+    if (listing) {
+      listing.status = ListingStatus.SOLD;
+      await this.listingRepo.save(listing);
+    }
+
     this.logger.log(`confirmReceipt ESCROW_HELD→RELEASED_TO_SELLER txId=${id}`);
     return tx;
   }

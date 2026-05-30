@@ -10,8 +10,11 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
+import { UserRole } from '../users/entities/user.entity';
 import { TransactionsService } from './transactions.service';
 import { IpnPayload } from '../payments/interfaces/payment-gateway.interface';
 
@@ -65,11 +68,13 @@ export class TransactionsController {
   }
 
   @Post('transactions/:id/resolve-dispute')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.NOT_IMPLEMENTED)
   @ApiOperation({ summary: '[Admin] Resolve dispute — pending admin UI (Sprint 5 stub)' })
   resolveDispute() {
-    return { message: 'Dispute resolution UI pending — manual resolution required in Sprint 6' };
+    return { message: 'Dispute resolution UI pending — manual resolution required' };
   }
 
   @Post('webhooks/momo/ipn')
