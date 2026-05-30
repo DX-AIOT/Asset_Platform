@@ -36,6 +36,30 @@ export interface Item {
   updatedAt: string;
 }
 
+export interface PriceHistoryPoint {
+  id: string;
+  estimatedValue: number;
+  currency: string;
+  source: string;
+  recordedAt: string;
+}
+
+export type TrendDirection = 'up' | 'flat' | 'down';
+
+export interface TrendWindow {
+  windowDays: number;
+  direction: TrendDirection;
+  percentChange: number;
+  fromValue: number | null;
+  toValue: number | null;
+}
+
+export interface PriceHistoryResponse {
+  points: PriceHistoryPoint[];
+  latestValue: number | null;
+  trends: TrendWindow[];
+}
+
 export interface CreateItemDto {
   name: string;
   brand?: string;

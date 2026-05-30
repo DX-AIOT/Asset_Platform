@@ -34,11 +34,14 @@ export class OcrReceiptService {
 
   private async callVisionModel(payload: OcrReceiptDto): Promise<RawModelResult> {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (!apiKey) {
-      throw new InternalServerErrorException('OPENAI_API_KEY is not configured');
+    const localMode = this.getBooleanConfig('OPENAI_LOCAL_MODE', !apiKey);
+    if (localMode || !apiKey) {
+      return this.mockModelResult();
     }
 
     const model = this.configService.get<string>('OPENAI_OCR_MODEL') ?? 'gpt-4.1-mini';
+    const openAIBaseUrl =
+      this.configService.get<string>('OPENAI_BASE_URL')?.replace(/\/$/, '') ?? 'https://api.openai.com/v1';
     const imageInput = payload.imageUrl
       ? { type: 'input_image', image_url: payload.imageUrl }
       : {
@@ -46,7 +49,7 @@ export class OcrReceiptService {
           image_url: `data:${payload.mimeType ?? 'image/jpeg'};base64,${payload.imageBase64}`,
         };
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const response = await fetch(`${openAIBaseUrl}/responses`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -84,6 +87,17 @@ export class OcrReceiptService {
     } catch {
       throw new InternalServerErrorException('OpenAI OCR response was not valid JSON');
     }
+  }
+
+  private mockModelResult(): RawModelResult {
+    return {
+      purchaseDate: null,
+      totalAmount: null,
+      currency: null,
+      warrantyExpiryDate: null,
+      warrantyPeriodMonths: null,
+      confidence: 0,
+    };
   }
 
   // O(n) time and O(1) space over each small field string; keeps endpoint latency dominated by model call.
@@ -155,6 +169,10 @@ export class OcrReceiptService {
     } else if (hasComma) {
       const groups = stripped.split(',');
       normalized = groups[groups.length - 1].length === 3 ? stripped.replace(/,/g, '') : stripped.replace(',', '.');
+    } else if (hasDot) {
+      const groups = stripped.split('.');
+      const allThousandsGroups = groups.length > 1 && groups.slice(1).every((group) => group.length === 3);
+      normalized = allThousandsGroups ? stripped.replace(/\./g, '') : stripped;
     } else {
       normalized = stripped;
     }
@@ -221,5 +239,14 @@ export class OcrReceiptService {
     }
 
     return date.toISOString().slice(0, 10);
+  }
+
+  private getBooleanConfig(key: string, fallback: boolean): boolean {
+    const raw = this.configService.get<string>(key);
+    if (raw == null || raw.trim() === '') {
+      return fallback;
+    }
+
+    return ['true', '1', 'yes', 'on'].includes(raw.trim().toLowerCase());
   }
 }

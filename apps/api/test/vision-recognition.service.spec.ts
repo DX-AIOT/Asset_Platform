@@ -2,11 +2,14 @@ import { ConfigService } from '@nestjs/config';
 import { VisionRecognitionService } from '../src/ai/vision-recognition.service';
 
 describe('VisionRecognitionService', () => {
-  const configService = {
-    get: jest.fn().mockReturnValue('test-key'),
-  } as unknown as ConfigService;
-
   it('maps OpenAI JSON to structured result and keeps fallback off at high confidence', async () => {
+    const configService = {
+      get: jest.fn((key: string) => {
+        if (key === 'OPENAI_API_KEY') return 'test-key';
+        if (key === 'OPENAI_LOCAL_MODE') return 'false';
+        return undefined;
+      }),
+    } as unknown as ConfigService;
     const service = new VisionRecognitionService(configService);
     (service as any).openai = {
       responses: {
@@ -31,6 +34,13 @@ describe('VisionRecognitionService', () => {
   });
 
   it('enables fallback when low confidence model/name is returned', async () => {
+    const configService = {
+      get: jest.fn((key: string) => {
+        if (key === 'OPENAI_API_KEY') return 'test-key';
+        if (key === 'OPENAI_LOCAL_MODE') return 'false';
+        return undefined;
+      }),
+    } as unknown as ConfigService;
     const service = new VisionRecognitionService(configService);
     (service as any).openai = {
       responses: {
@@ -50,5 +60,25 @@ describe('VisionRecognitionService', () => {
 
     expect(result.fallbackSuggested).toBe(true);
     expect(result.category.value).toBe('motorbike');
+  });
+
+  it('returns local fallback payload when OPENAI_LOCAL_MODE is enabled', async () => {
+    const configService = {
+      get: jest.fn((key: string) => {
+        if (key === 'OPENAI_LOCAL_MODE') return 'true';
+        return undefined;
+      }),
+    } as unknown as ConfigService;
+
+    const service = new VisionRecognitionService(configService);
+    const result = await service.recognizeFromBase64('c'.repeat(64));
+
+    expect(result).toMatchObject({
+      name: { value: null, confidence: 0 },
+      brand: { value: null, confidence: 0 },
+      model: { value: null, confidence: 0 },
+      category: { value: 'other', confidence: 0.4 },
+      fallbackSuggested: true,
+    });
   });
 });
