@@ -14,6 +14,8 @@ import { SharingModule } from './sharing/sharing.module';
 import { ReportsModule } from './reports/reports.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
+import { TransactionsModule } from './transactions/transactions.module';
+import { PaymentGatewayModule } from './payments/payment-gateway.module';
 import { DatabaseSeedService } from './database/database-seed.service';
 import { User } from './users/entities/user.entity';
 import { Item } from './items/entities/item.entity';
@@ -59,6 +61,8 @@ import { AppService } from './app.service';
     ReportsModule,
     RemindersModule,
     MarketplaceModule,
+    TransactionsModule,
+    PaymentGatewayModule,
   ],
   controllers: [AppController],
   providers: [
