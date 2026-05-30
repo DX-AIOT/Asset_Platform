@@ -39,6 +39,7 @@ export class ListingsService {
     const listing = this.listingRepo.create({
       itemId: dto.itemId,
       sellerId: userId,
+      title: dto.title ?? item.name ?? null,
       price: dto.price,
       currency: dto.currency ?? 'USD',
       condition: dto.condition,
@@ -158,7 +159,7 @@ export class ListingsService {
     }
 
     const [listings, total] = await qb
-      .orderBy('listing."publishedAt"', 'DESC')
+      .orderBy('listing.publishedAt', 'DESC')
       .skip(offset)
       .take(limit)
       .getManyAndCount();
@@ -192,7 +193,7 @@ export class ListingsService {
       .leftJoinAndSelect('listing.item', 'item')
       .where('listing."sellerId" = :userId', { userId })
       .andWhere('listing.status != :deleted', { deleted: ListingStatus.DELETED })
-      .orderBy('listing."createdAt"', 'DESC')
+      .orderBy('listing.createdAt', 'DESC')
       .skip(offset)
       .take(limit)
       .getManyAndCount();
@@ -232,6 +233,7 @@ export class ListingsService {
     dto.id = listing.id;
     dto.itemId = listing.itemId;
     dto.sellerId = listing.sellerId;
+    dto.title = listing.title ?? (listing as any).item?.name ?? null;
     dto.price = Number(listing.price);
     dto.currency = listing.currency;
     dto.condition = listing.condition;
