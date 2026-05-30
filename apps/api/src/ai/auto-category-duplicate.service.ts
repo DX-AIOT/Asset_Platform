@@ -46,7 +46,10 @@ export class AutoCategoryDuplicateService {
 
   // Category scoring is O(C*K + T), duplicate scoring is O(N*L), space O(N+T):
   // C categories, K keywords/category, T tokens for candidate, N inventory size, L combined token length/item.
-  evaluate(candidate: AssetFingerprintDto, inventory: InventoryAssetDto[]): AutoCategoryDuplicateResult {
+  evaluate(
+    candidate: AssetFingerprintDto,
+    inventory: InventoryAssetDto[]
+  ): AutoCategoryDuplicateResult {
     const autoCategory = this.predictCategory(candidate);
     const matches = inventory
       .map((item) => this.scoreDuplicate(candidate, item))
@@ -95,7 +98,10 @@ export class AutoCategoryDuplicateService {
     return { category: bestCategory, confidence };
   }
 
-  private scoreDuplicate(candidate: AssetFingerprintDto, item: InventoryAssetDto): DuplicateCandidate {
+  private scoreDuplicate(
+    candidate: AssetFingerprintDto,
+    item: InventoryAssetDto
+  ): DuplicateCandidate {
     const nameSimilarity = this.jaccard(this.tokenize(candidate.name), this.tokenize(item.name));
     const brandBoost = this.sameNormalized(candidate.brand, item.brand) ? 0.14 : 0;
     const modelBoost = this.sameNormalized(candidate.model, item.model) ? 0.22 : 0;

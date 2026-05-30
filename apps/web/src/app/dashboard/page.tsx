@@ -32,7 +32,7 @@ function getDaysUntil(dateString: string): number {
 }
 
 export default function DashboardPage() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [portfolio, setPortfolio] = useState<{ total: number; depreciated: number }>({
@@ -46,10 +46,10 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push('/login');
     }
-  }, [loading, user, router]);
+  }, [authLoading, user, router]);
 
   const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);
@@ -261,6 +261,7 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-500">{user.email}</span>
               <Link
                 href="/settings"
                 className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
@@ -279,9 +280,9 @@ export default function DashboardPage() {
       </nav>
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Welcome, {user.firstName || user.email}!
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">
+            Welcome back, {user.firstName || user.email}!
           </h2>
           <div className="space-y-2 text-gray-600">
             <p><strong>Email:</strong> {user.email}</p>

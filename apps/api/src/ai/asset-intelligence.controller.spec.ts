@@ -6,7 +6,10 @@ describe('AssetIntelligenceController', () => {
     const mockService = {
       evaluate: jest.fn().mockReturnValue({
         autoCategory: { category: 'laptop', confidence: 0.9 },
-        duplicateDetection: { isDuplicateLikely: true, matches: [{ itemId: '1', score: 0.9, reason: 'same_model' }] },
+        duplicateDetection: {
+          isDuplicateLikely: true,
+          matches: [{ itemId: '1', score: 0.9, reason: 'same_model' }],
+        },
       }),
     } as unknown as AutoCategoryDuplicateService;
 

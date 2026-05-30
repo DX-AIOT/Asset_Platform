@@ -107,7 +107,9 @@ export class OcrReceiptService {
     const warrantyMonths = this.normalizeAmount(raw.warrantyPeriodMonths ?? null);
     const warrantyExpiryDate =
       explicitWarrantyDate ??
-      (purchaseDate && warrantyMonths ? this.addMonths(purchaseDate, Math.floor(warrantyMonths)) : null);
+      (purchaseDate && warrantyMonths
+        ? this.addMonths(purchaseDate, Math.floor(warrantyMonths))
+        : null);
 
     return {
       purchaseDate,

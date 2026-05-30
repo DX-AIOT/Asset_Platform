@@ -35,7 +35,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponse> {
@@ -148,12 +148,12 @@ export class AuthService {
       }
     }
 
-    const tokens = await this.generateTokens(user);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    const tokens = await this.generateTokens(user!);
+    await this.updateRefreshToken(user!.id, tokens.refreshToken);
 
     return {
       ...tokens,
-      user: this.sanitizeUser(user),
+      user: this.sanitizeUser(user!),
     };
   }
 

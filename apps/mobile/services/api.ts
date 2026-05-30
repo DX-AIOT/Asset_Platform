@@ -88,17 +88,13 @@ export interface UserProfile {
 }
 
 export const authApi = {
-  register: (data: RegisterData) =>
-    api.post<AuthResponse>('/auth/register', data),
+  register: (data: RegisterData) => api.post<AuthResponse>('/auth/register', data),
 
-  login: (data: LoginData) =>
-    api.post<AuthResponse>('/auth/login', data),
+  login: (data: LoginData) => api.post<AuthResponse>('/auth/login', data),
 
-  getProfile: () =>
-    api.get<UserProfile>('/auth/me'),
+  getProfile: () => api.get<UserProfile>('/auth/me'),
 
-  logout: () =>
-    api.post('/auth/logout'),
+  logout: () => api.post('/auth/logout'),
 };
 
 export interface CreateItemData {
@@ -134,20 +130,16 @@ export interface ItemResponse {
 }
 
 export const itemsApi = {
-  create: (data: CreateItemData) =>
-    api.post<ItemResponse>('/items', data),
+  create: (data: CreateItemData) => api.post<ItemResponse>('/items', data),
 
-  getAll: () =>
-    api.get<ItemResponse[]>('/items'),
+  getAll: () => api.get<ItemResponse[]>('/items'),
 
-  getById: (id: string) =>
-    api.get<ItemResponse>(`/items/${id}`),
+  getById: (id: string) => api.get<ItemResponse>(`/items/${id}`),
 
   update: (id: string, data: Partial<CreateItemData>) =>
     api.patch<ItemResponse>(`/items/${id}`, data),
 
-  delete: (id: string) =>
-    api.delete(`/items/${id}`),
+  delete: (id: string) => api.delete(`/items/${id}`),
 
   uploadPhoto: (formData: FormData) =>
     api.post<{ url: string }>('/items/upload-photo', formData, {

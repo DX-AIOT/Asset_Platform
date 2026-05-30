@@ -130,6 +130,7 @@ DATABASE_URL="postgresql://staging..." npm run seed:demo --workspace=@dx-aiot/ap
 ```
 
 **Expected Output:**
+
 ```
 ✅ Database connected
 ✅ Demo user created: demo@dx-aiot.com / Demo@123
@@ -181,6 +182,7 @@ ab -n 100 -c 10 https://staging-api.example.com/health
 ### Verify Seed Data
 
 Check that 3 items are visible:
+
 - ✅ iPhone 14 Pro (Mobile Phones)
 - ✅ MacBook Pro 16" (Laptops)
 - ✅ Honda Wave Alpha 110 (Vehicles)
@@ -210,6 +212,7 @@ Check that 3 items are visible:
 ### Issue: "Cannot connect to database"
 
 **Solution:**
+
 ```bash
 # Verify DATABASE_URL in EB environment
 aws elasticbeanstalk describe-configuration-settings \
@@ -221,6 +224,7 @@ aws elasticbeanstalk describe-configuration-settings \
 ### Issue: "Seed script fails with 'table does not exist'"
 
 **Solution:**
+
 ```bash
 # TypeORM should auto-create tables with synchronize: true in development
 # For staging, ensure synchronize is enabled or run migrations manually
@@ -232,6 +236,7 @@ psql $DATABASE_URL -c "\dt"
 ### Issue: "Health check returns 404"
 
 **Solution:**
+
 1. Verify AppController has @Get('health') endpoint
 2. Check EB logs: `eb logs`
 3. Verify security groups allow HTTP/HTTPS traffic
@@ -239,6 +244,7 @@ psql $DATABASE_URL -c "\dt"
 ### Issue: "API response time > 500ms"
 
 **Solution:**
+
 1. Check EB instance type (t3.micro may be too small)
 2. Verify database location (same region as API)
 3. Add database indexes if needed
@@ -247,11 +253,13 @@ psql $DATABASE_URL -c "\dt"
 ## Rollback Plan
 
 ### Frontend Rollback
+
 ```bash
 # Vercel dashboard → Deployments → Promote previous deployment
 ```
 
 ### Backend Rollback
+
 ```bash
 aws elasticbeanstalk update-environment \
   --application-name dx-aiot-api \
@@ -262,16 +270,19 @@ aws elasticbeanstalk update-environment \
 ## Monitoring
 
 ### Vercel
+
 - Dashboard: https://vercel.com/dashboard
 - Real-time logs available
 - Analytics enabled
 
 ### AWS
+
 - EB Console: Health dashboard
 - CloudWatch Logs: Real-time backend logs
 - CloudWatch Metrics: CPU, memory, requests
 
 ### Performance Targets
+
 - ✅ Frontend deploy: < 4 minutes
 - ✅ Backend deploy: < 10 minutes
 - ✅ Health check response: < 1 second
@@ -281,6 +292,7 @@ aws elasticbeanstalk update-environment \
 ## Next Steps
 
 After staging verification:
+
 1. Run full QA test suite
 2. Demo to stakeholders
 3. Get Go/No-Go approval

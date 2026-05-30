@@ -94,7 +94,7 @@ export class ItemsController {
   async getMyItems(
     @CurrentUser() user: any,
     @Query('category') category?: ItemCategory,
-    @Query('location') location?: string,
+    @Query('location') location?: string
   ): Promise<ItemsListResponseDto> {
     return this.itemsService.findMyItems(user.id, category, location);
   }

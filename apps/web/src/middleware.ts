@@ -11,8 +11,8 @@ export function middleware(request: NextRequest) {
   const hasToken = request.cookies.has('access_token');
 
   // Check if path is protected
-  const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));
-  const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
+  const isProtectedPath = protectedPaths.some((path) => pathname.startsWith(path));
+  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
   // Redirect to login if accessing protected route without token
   if (isProtectedPath && !hasToken) {

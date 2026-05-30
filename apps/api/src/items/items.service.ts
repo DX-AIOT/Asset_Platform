@@ -71,7 +71,7 @@ export class ItemsService {
   async findMyItems(
     userId: string,
     category?: ItemCategory,
-    location?: string,
+    location?: string
   ): Promise<ItemsListResponseDto> {
     const queryBuilder = this.itemsRepository
       .createQueryBuilder('item')
@@ -87,9 +87,7 @@ export class ItemsService {
       });
     }
 
-    const [items, total] = await queryBuilder
-      .orderBy('item.createdAt', 'DESC')
-      .getManyAndCount();
+    const [items, total] = await queryBuilder.orderBy('item.createdAt', 'DESC').getManyAndCount();
 
     return { items, total };
   }
@@ -145,10 +143,7 @@ export class ItemsService {
       select: ['purchasePrice', 'purchaseDate', 'depreciationRatePercent', 'category'],
     });
 
-    const total = items.reduce(
-      (sum, item) => sum + (Number(item.purchasePrice) || 0),
-      0,
-    );
+    const total = items.reduce((sum, item) => sum + (Number(item.purchasePrice) || 0), 0);
 
     const depreciated = items.reduce((sum, item) => {
       const current = this.computeCurrentValue(item);

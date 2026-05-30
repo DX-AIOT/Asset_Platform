@@ -7,24 +7,20 @@ export default function Home() {
   const router = useRouter();
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          router.replace('/(auth)/login');
         },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/(auth)/login');
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   return (
@@ -52,7 +48,9 @@ export default function Home() {
           >
             <Text style={styles.actionButtonIcon}>📷</Text>
             <View style={styles.actionButtonContent}>
-              <Text style={[styles.actionButtonTitle, styles.primaryActionButtonTitle]}>Scan New Asset</Text>
+              <Text style={[styles.actionButtonTitle, styles.primaryActionButtonTitle]}>
+                Scan New Asset
+              </Text>
               <Text style={styles.actionButtonSubtitle}>AI recognition in &lt;3s</Text>
             </View>
             <Text style={styles.actionButtonArrow}>›</Text>
@@ -219,6 +217,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
   },
   primaryActionButtonTitle: {
+    color: '#fff',
+  },
+  marketplaceActionButton: {
+    backgroundColor: '#F59E0B',
+  },
+  marketplaceActionButtonTitle: {
     color: '#fff',
   },
 });

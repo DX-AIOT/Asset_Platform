@@ -65,8 +65,7 @@ export const itemsApi = {
     return api.get<ItemsResponse>(`/items/my${params.toString() ? `?${params.toString()}` : ''}`);
   },
 
-  getItemById: (id: string) =>
-    api.get<Item>(`/items/${id}`),
+  getItemById: (id: string) => api.get<Item>(`/items/${id}`),
 
   getPriceHistory: (id: string) =>
     api.get<PriceHistoryResponse>(`/items/${id}/price-history`),

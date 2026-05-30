@@ -6,11 +6,17 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { CsrfGuard } from './guards/csrf.guard';
 import { CsrfService } from './csrf.service';
+
+const optionalProviders = [];
+if (process.env.GOOGLE_CLIENT_ID) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { GoogleStrategy } = require('./strategies/google.strategy');
+  optionalProviders.push(GoogleStrategy);
+}
 
 @Module({
   imports: [

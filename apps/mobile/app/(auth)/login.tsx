@@ -32,10 +32,7 @@ export default function Login() {
       await login({ email, password });
       router.replace('/(app)/');
     } catch (error: any) {
-      Alert.alert(
-        'Login Failed',
-        error.response?.data?.message || 'Invalid email or password'
-      );
+      Alert.alert('Login Failed', error.response?.data?.message || 'Invalid email or password');
     } finally {
       setIsLoading(false);
     }
@@ -83,10 +80,7 @@ export default function Login() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => router.push('/(auth)/register')}
-            disabled={isLoading}
-          >
+          <TouchableOpacity onPress={() => router.push('/(auth)/register')} disabled={isLoading}>
             <Text style={styles.linkText}>
               Don't have an account? <Text style={styles.linkTextBold}>Sign Up</Text>
             </Text>

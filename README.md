@@ -35,6 +35,7 @@ docker compose up -d
 ```
 
 ✅ **Done!** API sẽ chạy ở http://localhost:3001 với:
+
 - PostgreSQL + pgvector extension
 - Redis cache
 - 3 sample assets đã được seed sẵn
@@ -46,6 +47,7 @@ Xem thêm: [Docker Setup Guide](./docker/README.md)
 ### Option 2: Manual Setup (< 15 phút)
 
 **Prerequisites:**
+
 - **Node.js** >= 18.0.0
 - **npm** >= 9.0.0
 - **Git**
@@ -148,6 +150,7 @@ Types:
 ```
 
 **Ví dụ:**
+
 ```
 feat(mobile): add camera capture for asset photos
 fix(api): resolve PostgreSQL connection timeout
@@ -164,22 +167,26 @@ docs(readme): update setup instructions
 ## 🏗️ Tech Stack
 
 ### Mobile (`apps/mobile`)
+
 - React Native + Expo
 - TypeScript
 - React Navigation
 
 ### Web (`apps/web`)
+
 - Next.js 14 (App Router)
 - TypeScript
 - Tailwind CSS
 
 ### API (`apps/api`)
+
 - NestJS / FastAPI
 - PostgreSQL
 - Redis
 - OpenAI Integration
 
 ### Shared (`packages/shared`)
+
 - Shared TypeScript types
 - Common utilities
 - API client SDK
@@ -215,6 +222,7 @@ cd apps/web && npm test
 ## 📞 Support
 
 Gặp vấn đề? Liên hệ:
+
 - Email: tunb@aiot-global.com
 - Tạo issue trên GitHub
 

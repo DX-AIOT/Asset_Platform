@@ -19,7 +19,7 @@ function extractFromCookie(req: Request): string | null {
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     private readonly configService: ConfigService,
-    private readonly usersService: UsersService,
+    private readonly usersService: UsersService
   ) {
     super({
       // Cookies first (web), Bearer header fallback (mobile)

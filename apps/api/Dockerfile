@@ -1,20 +1,17 @@
-FROM node:20-alpine AS base
-
-# Install dependencies only when needed
-FROM base AS deps
+FROM node:20-alpine AS dev
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY apps/api/package*.json ./apps/api/
-COPY packages/shared/package*.json ./packages/shared/
+COPY . .
 
-# Install dependencies
 RUN npm ci
 
-# Development stage
-FROM base AS dev
-WORKDIR /app
+# Fix npm workspace hoisting: typeorm stays in apps/api but @nestjs/typeorm lands in root
+RUN if [ ! -d /app/node_modules/typeorm ] && [ -d /app/apps/api/node_modules/typeorm ]; then \
+      ln -s /app/apps/api/node_modules/typeorm /app/node_modules/typeorm; \
+    fi && \
+    if [ ! -d /app/node_modules/pg ] && [ -d /app/apps/api/node_modules/pg ]; then \
+      ln -s /app/apps/api/node_modules/pg /app/node_modules/pg; \
+    fi
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -26,36 +23,4 @@ COPY . .
 # Expose port
 EXPOSE 3001
 
-# Start development server
-CMD ["npm", "run", "dev"]
-
-# Production builder stage
-FROM base AS builder
-WORKDIR /app
-
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
-
-# Copy source code
-COPY . .
-
-# Build the application
-RUN npm run build
-
-# Production stage
-FROM base AS prod
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-# Copy built application
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/api/node_modules ./node_modules
-
-# Expose port
-EXPOSE 3001
-
-# Start production server
-CMD ["node", "dist/main"]
+CMD ["npm", "run", "dev", "--workspace=apps/api"]

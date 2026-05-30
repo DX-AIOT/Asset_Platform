@@ -25,9 +25,7 @@ export default function CameraScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.permissionContainer}>
-          <Text style={styles.permissionText}>
-            We need camera permission to scan your assets
-          </Text>
+          <Text style={styles.permissionText}>We need camera permission to scan your assets</Text>
           <TouchableOpacity style={styles.button} onPress={requestPermission}>
             <Text style={styles.buttonText}>Grant Permission</Text>
           </TouchableOpacity>
@@ -96,10 +94,7 @@ export default function CameraScreen() {
         onBarCodeScanned={isBarcodeMode ? handleBarcodeScanned : undefined}
       >
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
             <Text style={styles.headerButtonText}>✕</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{isBarcodeMode ? 'Scan Barcode/QR' : 'Scan Asset'}</Text>
@@ -115,9 +110,9 @@ export default function CameraScreen() {
 
         <View style={styles.controls}>
           {!isBarcodeMode && (
-          <TouchableOpacity style={styles.galleryButton} onPress={pickImage}>
-            <Text style={styles.galleryButtonText}>📁</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.galleryButton} onPress={pickImage}>
+              <Text style={styles.galleryButtonText}>📁</Text>
+            </TouchableOpacity>
           )}
 
           {!isBarcodeMode && (
@@ -126,10 +121,7 @@ export default function CameraScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={styles.flipButton}
-            onPress={toggleCameraFacing}
-          >
+          <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
             <Text style={styles.flipButtonText}>🔄</Text>
           </TouchableOpacity>
         </View>

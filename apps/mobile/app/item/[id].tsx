@@ -81,6 +81,7 @@ export default function ItemDetail() {
 
   useEffect(() => {
     fetchItem();
+    fetchPriceHistory();
   }, [id]);
 
   const sortByDueAt = (list: MaintenanceReminder[]) =>
@@ -151,6 +152,102 @@ export default function ItemDetail() {
     }
   };
 
+  const fetchPriceHistory = async () => {
+    try {
+      const response = await itemsApi.getPriceHistory(id);
+      setPriceHistory(response.data);
+    } catch (error) {
+      console.error('Failed to fetch price history:', error);
+    } finally {
+      setPriceHistoryLoading(false);
+    }
+  };
+
+  const enterEditMode = () => {
+    setEditPhotos([...(item?.photos ?? [])]);
+    setEditMode(true);
+  };
+
+  const cancelEdit = () => {
+    setEditMode(false);
+    setEditPhotos([]);
+  };
+
+  const savePhotos = async () => {
+    setSaving(true);
+    try {
+      await itemsApi.update(id, { photos: editPhotos });
+      setItem((prev) => (prev ? { ...prev, photos: editPhotos } : prev));
+      setEditMode(false);
+      setEditPhotos([]);
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to save photos');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const requestPermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (cameraStatus !== 'granted' || mediaStatus !== 'granted') {
+        Alert.alert('Permissions Required', 'Camera and photo library access are needed.');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const pickFromCamera = async () => {
+    const ok = await requestPermissions();
+    if (!ok) return;
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setEditPhotos((prev) => [...prev, result.assets[0].uri]);
+    }
+  };
+
+  const pickFromGallery = async () => {
+    const ok = await requestPermissions();
+    if (!ok) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setEditPhotos((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
+    }
+  };
+
+  const showAddPhotoOptions = () => {
+    Alert.alert('Add Photo', 'Choose a source', [
+      { text: 'Camera', onPress: pickFromCamera },
+      { text: 'Gallery', onPress: pickFromGallery },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const removePhoto = (index: number) => {
+    setEditPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const reorderPhoto = (index: number, direction: 'left' | 'right') => {
+    const next = direction === 'left' ? index - 1 : index + 1;
+    if (next < 0 || next >= editPhotos.length) return;
+    setEditPhotos((prev) => {
+      const updated = [...prev];
+      [updated[index], updated[next]] = [updated[next], updated[index]];
+      return updated;
+    });
+  };
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -177,9 +274,86 @@ export default function ItemDetail() {
 
   return (
     <>
-      <Stack.Screen options={{ title: item.name }} />
+      <Stack.Screen
+        options={{
+          title: editMode ? 'Edit Photos' : item.name,
+          headerLeft: editMode
+            ? () => (
+                <TouchableOpacity onPress={cancelEdit} style={styles.headerButton}>
+                  <Text style={styles.headerButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              )
+            : undefined,
+          headerRight: () =>
+            editMode ? (
+              <TouchableOpacity
+                onPress={savePhotos}
+                disabled={saving}
+                style={styles.headerButton}
+              >
+                <Text
+                  style={[
+                    styles.headerButtonText,
+                    styles.headerButtonBold,
+                    saving && styles.disabledText,
+                  ]}
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={enterEditMode} style={styles.headerButton}>
+                <Text style={styles.headerButtonText}>Edit Photos</Text>
+              </TouchableOpacity>
+            ),
+        }}
+      />
       <ScrollView style={styles.container}>
-        {item.photos && item.photos.length > 0 ? (
+        {editMode ? (
+          <View style={styles.editSection}>
+            <Text style={styles.editSectionTitle}>Photos</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.photosContainer}
+            >
+              {editPhotos.map((uri, index) => (
+                <View key={index} style={styles.photoWrapper}>
+                  <Image source={{ uri }} style={styles.editPhoto} />
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => removePhoto(index)}
+                  >
+                    <Text style={styles.removePhotoText}>×</Text>
+                  </TouchableOpacity>
+                  <View style={styles.reorderRow}>
+                    <TouchableOpacity
+                      style={[styles.reorderButton, index === 0 && styles.reorderButtonDisabled]}
+                      onPress={() => reorderPhoto(index, 'left')}
+                      disabled={index === 0}
+                    >
+                      <Text style={styles.reorderButtonText}>◀</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.reorderButton,
+                        index === editPhotos.length - 1 && styles.reorderButtonDisabled,
+                      ]}
+                      onPress={() => reorderPhoto(index, 'right')}
+                      disabled={index === editPhotos.length - 1}
+                    >
+                      <Text style={styles.reorderButtonText}>▶</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+              <TouchableOpacity style={styles.addPhotoButton} onPress={showAddPhotoOptions}>
+                <Text style={styles.addPhotoText}>+</Text>
+                <Text style={styles.addPhotoLabel}>Add Photo</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        ) : item.photos && item.photos.length > 0 ? (
           <ScrollView
             horizontal
             pagingEnabled
@@ -234,6 +408,32 @@ export default function ItemDetail() {
                 </Text>
               </View>
             </View>
+          </View>
+
+          {/* Price History Section */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Price History</Text>
+            {priceHistoryLoading ? (
+              <ActivityIndicator size="small" color="#007AFF" style={{ marginTop: 8 }} />
+            ) : priceHistory && priceHistory.points.length > 0 ? (
+              <View style={styles.priceHistoryCard}>
+                <View style={styles.priceHistoryHeader}>
+                  {priceHistory.latestValue !== null && (
+                    <Text style={styles.latestValue}>
+                      ${Number(priceHistory.latestValue).toLocaleString()}
+                    </Text>
+                  )}
+                  {trend30d && (
+                    <Text style={[styles.trendBadge, { color: trendColor }]}>
+                      {trendArrow} {formatPercent(trend30d.changePercent)} 30d
+                    </Text>
+                  )}
+                </View>
+                <Sparkline points={priceHistory.points} />
+              </View>
+            ) : (
+              <Text style={styles.emptyHistory}>No price history yet.</Text>
+            )}
           </View>
 
           {item.model && (
@@ -424,6 +624,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
   },
+  headerButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  headerButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+  },
+  headerButtonBold: {
+    fontWeight: '600',
+  },
+  disabledText: {
+    opacity: 0.5,
+  },
   photoGallery: {
     height: 300,
   },
@@ -440,6 +654,84 @@ const styles = StyleSheet.create({
   },
   photoPlaceholderText: {
     fontSize: 80,
+  },
+  editSection: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  editSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 12,
+  },
+  photosContainer: {
+    flexDirection: 'row',
+  },
+  photoWrapper: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  editPhoto: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FF3B30',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removePhotoText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  reorderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  reorderButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 2,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    marginHorizontal: 1,
+  },
+  reorderButtonDisabled: {
+    opacity: 0.3,
+  },
+  reorderButtonText: {
+    fontSize: 12,
+    color: '#333',
+  },
+  addPhotoButton: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPhotoText: {
+    fontSize: 32,
+    color: '#007AFF',
+  },
+  addPhotoLabel: {
+    fontSize: 12,
+    color: '#007AFF',
+    marginTop: 4,
   },
   content: {
     padding: 20,

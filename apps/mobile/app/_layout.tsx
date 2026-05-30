@@ -12,6 +12,8 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
+        <Stack.Screen name="item" options={{ headerShown: true }} />
+        <Stack.Screen name="listing" options={{ headerShown: true }} />
       </Stack>
     </AuthProvider>
   );

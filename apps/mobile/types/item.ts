@@ -93,3 +93,21 @@ export const LOCATION_OPTIONS = [
   'Storage',
   'Other',
 ];
+
+export interface PriceHistoryPoint {
+  date: string;
+  value: number;
+  source: string;
+}
+
+export interface Trend {
+  changeAmount: number;
+  changePercent: number;
+  direction: 'up' | 'down' | 'flat';
+}
+
+export interface PriceHistoryResponse {
+  points: PriceHistoryPoint[];
+  latestValue: number | null;
+  trends: Trend | null;
+}

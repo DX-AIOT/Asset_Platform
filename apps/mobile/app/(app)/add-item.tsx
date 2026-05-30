@@ -76,7 +76,8 @@ export default function AddItem() {
   const mapProductCategoryToItemCategory = (rawCategory: string): ItemCategory => {
     const normalized = rawCategory.toLowerCase();
     if (normalized.includes('audio')) return ItemCategory.ELECTRONICS;
-    if (normalized.includes('computer') || normalized.includes('peripheral')) return ItemCategory.ELECTRONICS;
+    if (normalized.includes('computer') || normalized.includes('peripheral'))
+      return ItemCategory.ELECTRONICS;
     return ItemCategory.OTHER;
   };
 
@@ -142,14 +143,20 @@ export default function AddItem() {
         });
 
         if (!result.found) {
-          Alert.alert('Barcode saved', 'No product info found. Barcode has been saved in Serial Number.');
+          Alert.alert(
+            'Barcode saved',
+            'No product info found. Barcode has been saved in Serial Number.'
+          );
         }
       } catch {
         setFormData((current) => ({
           ...current,
           serial: current.serial || barcode,
         }));
-        Alert.alert('Lookup failed', 'Could not fetch product info. Barcode was saved in Serial Number.');
+        Alert.alert(
+          'Lookup failed',
+          'Could not fetch product info. Barcode was saved in Serial Number.'
+        );
       } finally {
         setLookupLoading(false);
       }
@@ -274,16 +281,22 @@ export default function AddItem() {
     });
   };
 
+  const reorderPhoto = (index: number, direction: 'left' | 'right') => {
+    const next = direction === 'left' ? index - 1 : index + 1;
+    if (next < 0 || next >= photos.length) return;
+    setPhotos((prev) => {
+      const updated = [...prev];
+      [updated[index], updated[next]] = [updated[next], updated[index]];
+      return updated;
+    });
+  };
+
   const showPhotoOptions = () => {
-    Alert.alert(
-      'Add Photo',
-      'Choose a source',
-      [
-        { text: 'Camera', onPress: pickImageFromCamera },
-        { text: 'Gallery', onPress: pickImageFromGallery },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+    Alert.alert('Add Photo', 'Choose a source', [
+      { text: 'Camera', onPress: pickImageFromCamera },
+      { text: 'Gallery', onPress: pickImageFromGallery },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleSubmit = async () => {
@@ -400,6 +413,25 @@ export default function AddItem() {
                 >
                   <Text style={styles.removePhotoText}>×</Text>
                 </TouchableOpacity>
+                <View style={styles.reorderRow}>
+                  <TouchableOpacity
+                    style={[styles.reorderButton, index === 0 && styles.reorderButtonDisabled]}
+                    onPress={() => reorderPhoto(index, 'left')}
+                    disabled={index === 0}
+                  >
+                    <Text style={styles.reorderButtonText}>◀</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.reorderButton,
+                      index === photos.length - 1 && styles.reorderButtonDisabled,
+                    ]}
+                    onPress={() => reorderPhoto(index, 'right')}
+                    disabled={index === photos.length - 1}
+                  >
+                    <Text style={styles.reorderButtonText}>▶</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
             {photos.length < MAX_PHOTOS && (
@@ -458,18 +490,20 @@ export default function AddItem() {
             </TouchableOpacity>
             {showCategoryPicker && (
               <View style={styles.pickerOptions}>
-                {(Object.entries(CATEGORY_LABELS) as [ItemCategory, string][]).map(([key, label]) => (
-                  <TouchableOpacity
-                    key={key}
-                    style={styles.pickerOption}
-                    onPress={() => {
-                      setFormData({ ...formData, category: key });
-                      setShowCategoryPicker(false);
-                    }}
-                  >
-                    <Text style={styles.pickerOptionText}>{label}</Text>
-                  </TouchableOpacity>
-                ))}
+                {(Object.entries(CATEGORY_LABELS) as [ItemCategory, string][]).map(
+                  ([key, label]) => (
+                    <TouchableOpacity
+                      key={key}
+                      style={styles.pickerOption}
+                      onPress={() => {
+                        setFormData({ ...formData, category: key });
+                        setShowCategoryPicker(false);
+                      }}
+                    >
+                      <Text style={styles.pickerOptionText}>{label}</Text>
+                    </TouchableOpacity>
+                  )
+                )}
               </View>
             )}
           </View>
@@ -724,6 +758,26 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  reorderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  reorderButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 2,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    marginHorizontal: 1,
+  },
+  reorderButtonDisabled: {
+    opacity: 0.3,
+  },
+  reorderButtonText: {
+    fontSize: 12,
+    color: '#333',
   },
   addPhotoButton: {
     width: 100,

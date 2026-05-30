@@ -66,10 +66,7 @@ export default function Register() {
       style={styles.container}
     >
       <StatusBar style="dark" />
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.content}>
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Sign up to get started</Text>
@@ -131,10 +128,7 @@ export default function Register() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => router.back()}
-              disabled={isLoading}
-            >
+            <TouchableOpacity onPress={() => router.back()} disabled={isLoading}>
               <Text style={styles.linkText}>
                 Already have an account? <Text style={styles.linkTextBold}>Sign In</Text>
               </Text>
