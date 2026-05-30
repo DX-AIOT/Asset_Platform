@@ -28,6 +28,13 @@ export default function AppLayout() {
           headerLargeTitle: true,
         }}
       />
+      <Stack.Screen
+        name="marketplace"
+        options={{
+          title: 'Marketplace',
+          headerLargeTitle: true,
+        }}
+      />
     </Stack>
   );
 }

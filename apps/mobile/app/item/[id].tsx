@@ -11,7 +11,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { itemsApi } from '../../services/itemsApi';
 import { Item, CATEGORY_LABELS, PriceHistoryResponse, PriceHistoryPoint } from '../../types/item';
@@ -67,6 +67,7 @@ function Sparkline({ points }: { points: PriceHistoryPoint[] }) {
 }
 
 export default function ItemDetail() {
+  const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const id = params.id as string;
   const [item, setItem] = useState<Item | null>(null);
@@ -415,6 +416,13 @@ export default function ItemDetail() {
               <Text style={styles.notes}>{item.notes}</Text>
             </View>
           )}
+
+          <TouchableOpacity
+            style={styles.sellButton}
+            onPress={() => router.push({ pathname: '/listing/new', params: { itemId: item.id } })}
+          >
+            <Text style={styles.sellButtonText}>🏷  Sell This Item</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </>
@@ -638,5 +646,17 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  sellButton: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  sellButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

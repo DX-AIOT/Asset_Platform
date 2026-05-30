@@ -79,6 +79,20 @@ export default function Home() {
             </View>
             <Text style={styles.actionButtonArrow}>›</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, styles.marketplaceActionButton]}
+            onPress={() => router.push('/(app)/marketplace')}
+          >
+            <Text style={styles.actionButtonIcon}>🏪</Text>
+            <View style={styles.actionButtonContent}>
+              <Text style={[styles.actionButtonTitle, styles.marketplaceActionButtonTitle]}>
+                Marketplace
+              </Text>
+              <Text style={styles.actionButtonSubtitle}>Buy &amp; sell assets</Text>
+            </View>
+            <Text style={styles.actionButtonArrow}>›</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -193,6 +207,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
   },
   primaryActionButtonTitle: {
+    color: '#fff',
+  },
+  marketplaceActionButton: {
+    backgroundColor: '#F59E0B',
+  },
+  marketplaceActionButtonTitle: {
     color: '#fff',
   },
 });
