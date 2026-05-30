@@ -13,6 +13,11 @@ import { ListingCondition } from '../entities/listing.entity';
 import { ListingLocationDto } from './create-listing.dto';
 
 export class UpdateListingDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  title?: string;
+
   @ApiPropertyOptional({ example: 249.99 })
   @IsOptional()
   @IsNumber()

@@ -36,6 +36,11 @@ export class CreateListingDto {
   @IsUUID()
   itemId!: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  title?: string;
+
   @ApiProperty({ example: 299.99 })
   @IsNumber()
   @IsPositive()

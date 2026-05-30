@@ -9,6 +9,16 @@ import type {
   CreateItemInput,
   ConditionAssessmentResult,
 } from '@/types/items';
+import type {
+  Listing,
+  ListingsPage,
+  MyListingsPage,
+  CreateListingInput,
+  UpdateListingInput,
+  ListingPriceSuggestion,
+  ListingAutofillDraft,
+  ListingCondition,
+} from '@/types/listings';
 import { getApiBaseUrl } from './api-base-url';
 
 const API_URL = getApiBaseUrl();
@@ -125,6 +135,77 @@ export async function getItemDepreciation(id: string): Promise<ItemDepreciationR
 
 export async function getItemPriceHistory(id: string): Promise<PriceHistoryResponse> {
   return fetchWithAuth<PriceHistoryResponse>(`/items/${id}/price-history`);
+}
+
+// ── Marketplace ───────────────────────────────────────────────────────────────
+
+export async function browseListings(params?: {
+  q?: string;
+  category?: string;
+  condition?: string;
+  priceMin?: number;
+  priceMax?: number;
+  page?: number;
+  limit?: number;
+}): Promise<ListingsPage> {
+  const query = new URLSearchParams();
+  if (params?.q) query.set('q', params.q);
+  if (params?.category) query.set('category', params.category);
+  if (params?.condition) query.set('condition', params.condition);
+  if (params?.priceMin !== undefined) query.set('priceMin', String(params.priceMin));
+  if (params?.priceMax !== undefined) query.set('priceMax', String(params.priceMax));
+  if (params?.page !== undefined) query.set('page', String(params.page));
+  if (params?.limit !== undefined) query.set('limit', String(params.limit));
+  const qs = query.toString();
+  return fetchWithAuth<ListingsPage>(`/marketplace/listings${qs ? `?${qs}` : ''}`);
+}
+
+export async function getListing(id: string): Promise<Listing> {
+  return fetchWithAuth<Listing>(`/marketplace/listings/${id}`);
+}
+
+export async function getMyListings(): Promise<MyListingsPage> {
+  return fetchWithAuth<MyListingsPage>('/marketplace/my-listings');
+}
+
+export async function createListing(data: CreateListingInput): Promise<Listing> {
+  return fetchWithAuth<Listing>('/marketplace/listings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateListing(id: string, data: UpdateListingInput): Promise<Listing> {
+  return fetchWithAuth<Listing>(`/marketplace/listings/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function publishListing(id: string): Promise<Listing> {
+  return fetchWithAuth<Listing>(`/marketplace/listings/${id}/publish`, { method: 'POST' });
+}
+
+export async function unpublishListing(id: string): Promise<Listing> {
+  return fetchWithAuth<Listing>(`/marketplace/listings/${id}/unpublish`, { method: 'POST' });
+}
+
+export async function deleteListing(id: string): Promise<void> {
+  await fetchWithAuth<void>(`/marketplace/listings/${id}`, { method: 'DELETE' });
+}
+
+export async function getListingAutofill(itemId: string): Promise<ListingAutofillDraft> {
+  return fetchWithAuth<ListingAutofillDraft>(`/ai/listing-autofill/${itemId}`);
+}
+
+export async function suggestListingPrice(params: {
+  itemId: string;
+  condition?: ListingCondition;
+}): Promise<ListingPriceSuggestion> {
+  return fetchWithAuth<ListingPriceSuggestion>('/ai/listing-price-suggest', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
 }
 
 export async function getInsuranceReportPdf(categoryIds?: string[]): Promise<Blob> {

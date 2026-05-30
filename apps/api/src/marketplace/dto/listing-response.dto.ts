@@ -43,6 +43,9 @@ export class ListingResponseDto {
   @ApiProperty({ enum: ListingStatus })
   status!: ListingStatus;
 
+  @ApiPropertyOptional({ nullable: true })
+  title!: string | null;
+
   @ApiProperty({ type: [String] })
   photos!: string[];
 

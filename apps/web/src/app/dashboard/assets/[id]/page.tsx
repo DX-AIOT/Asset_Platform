@@ -11,7 +11,7 @@ import type { Item, PriceHistoryResponse } from '@/types/items';
 import { CATEGORY_LABELS, CONDITION_LABELS } from '@/types/items';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Package, Pencil } from 'lucide-react';
+import { ArrowLeft, Package, Pencil, ShoppingBag } from 'lucide-react';
 import { StateCard } from '@/components/ui/state-card';
 import { PriceHistoryChart } from '@/components/ui/price-history-chart';
 
@@ -85,6 +85,10 @@ export default function AssetDetailPage() {
               <Link href="/dashboard" className="text-xl font-bold text-gray-900">
                 AIoT Asset Platform
               </Link>
+              <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Overview</Link>
+              <Link href="/dashboard/assets" className="text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-0.5">Assets</Link>
+              <Link href="/marketplace" className="text-sm text-gray-600 hover:text-gray-900">Marketplace</Link>
+              <Link href="/my-listings" className="text-sm text-gray-600 hover:text-gray-900">My Listings</Link>
             </div>
             <div className="flex items-center gap-3">
               <Link href="/settings" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
@@ -146,10 +150,16 @@ export default function AssetDetailPage() {
                     </Badge>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => router.push(`/dashboard/assets/${item.id}/edit`)}>
-                  <Pencil className="h-4 w-4 mr-1.5" />
-                  Edit
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => router.push(`/dashboard/assets/${item.id}/edit`)}>
+                    <Pencil className="h-4 w-4 mr-1.5" />
+                    Edit
+                  </Button>
+                  <Button size="sm" onClick={() => router.push(`/my-assets/${item.id}/sell`)}>
+                    <ShoppingBag className="h-4 w-4 mr-1.5" />
+                    Sell
+                  </Button>
+                </div>
               </div>
             </div>
 

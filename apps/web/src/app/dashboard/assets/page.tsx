@@ -82,6 +82,18 @@ export default function AssetsPage() {
               >
                 Reports
               </Link>
+              <Link
+                href="/marketplace"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Marketplace
+              </Link>
+              <Link
+                href="/my-listings"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                My Listings
+              </Link>
             </div>
             <div className="flex items-center gap-3">
               <Link

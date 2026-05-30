@@ -81,6 +81,9 @@ export class Listing {
   })
   status!: ListingStatus;
 
+  @Column({ type: 'varchar', nullable: true })
+  title!: string | null;
+
   @Column({ type: 'jsonb', default: '[]' })
   photos!: string[];
 
