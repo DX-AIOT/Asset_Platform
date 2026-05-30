@@ -1,29 +1,66 @@
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { MoMoService } from './momo.service';
-import { MoMoIpnPayload } from './momo.types';
+import { MoMoGatewayAdapter } from '../adapters/momo-gateway.adapter';
+import { IpnPayload } from '../interfaces/payment-gateway.interface';
+import { createHmac } from 'crypto';
 
-const MOCK_CONFIG = {
-  MOMO_BASE_URL: 'https://test-payment.momo.vn',
+const MOCK = {
   MOMO_PARTNER_CODE: 'MOMOATM4',
   MOMO_ACCESS_KEY: 'F8BBA842ECF85',
   MOMO_SECRET_KEY: 'K951B6PE1waDMi640xX08PD3vg6EkVlz',
-  MOMO_REDIRECT_URL: 'https://app.example.com/pay/result',
-  MOMO_IPN_URL: 'https://api.example.com/webhooks/momo/ipn',
+  MOMO_ENDPOINT: 'https://test-payment.momo.vn',
 };
 
-describe('MoMoService', () => {
-  let service: MoMoService;
+function sign(raw: string): string {
+  return createHmac('sha256', MOCK.MOMO_SECRET_KEY).update(raw).digest('hex');
+}
+
+function makeIpnPayload(overrides: Partial<IpnPayload> = {}): IpnPayload {
+  const base: Omit<IpnPayload, 'signature'> = {
+    partnerCode: MOCK.MOMO_PARTNER_CODE,
+    orderId: 'order-123',
+    requestId: 'req-456',
+    amount: 100000,
+    orderInfo: 'Test payment',
+    orderType: 'momo_wallet',
+    transId: 9999,
+    resultCode: 0,
+    message: 'Successful.',
+    payType: 'qr',
+    responseTime: 1700000000000,
+    extraData: '',
+  };
+  const raw = [
+    `accessKey=${MOCK.MOMO_ACCESS_KEY}`,
+    `amount=${base.amount}`,
+    `extraData=${base.extraData}`,
+    `message=${base.message}`,
+    `orderId=${base.orderId}`,
+    `orderInfo=${base.orderInfo}`,
+    `orderType=${base.orderType}`,
+    `partnerCode=${base.partnerCode}`,
+    `payType=${base.payType}`,
+    `requestId=${base.requestId}`,
+    `responseTime=${base.responseTime}`,
+    `resultCode=${base.resultCode}`,
+    `transId=${base.transId}`,
+  ].join('&');
+
+  return { ...base, ...overrides, signature: overrides.signature ?? sign(raw) };
+}
+
+describe('MoMoGatewayAdapter — verifyIpnSignature', () => {
+  let adapter: MoMoGatewayAdapter;
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
       providers: [
-        MoMoService,
+        MoMoGatewayAdapter,
         {
           provide: ConfigService,
           useValue: {
             getOrThrow: (key: string) => {
-              const val = MOCK_CONFIG[key as keyof typeof MOCK_CONFIG];
+              const val = MOCK[key as keyof typeof MOCK];
               if (!val) throw new Error(`Missing config: ${key}`);
               return val;
             },
@@ -31,74 +68,20 @@ describe('MoMoService', () => {
         },
       ],
     }).compile();
-
-    service = module.get(MoMoService);
+    adapter = module.get(MoMoGatewayAdapter);
   });
 
-  describe('buildSignature', () => {
-    it('produces consistent HMAC-SHA256 hex output', () => {
-      const sig = service.buildSignature('hello world');
-      expect(typeof sig).toBe('string');
-      expect(sig).toHaveLength(64);
-      // Same input → same output
-      expect(service.buildSignature('hello world')).toBe(sig);
-    });
-
-    it('produces different outputs for different inputs', () => {
-      const a = service.buildSignature('input-a');
-      const b = service.buildSignature('input-b');
-      expect(a).not.toBe(b);
-    });
+  it('returns true for a valid signature', () => {
+    expect(adapter.verifyIpnSignature(makeIpnPayload())).toBe(true);
   });
 
-  describe('verifyIpnSignature', () => {
-    const makePayload = (overrides: Partial<MoMoIpnPayload> = {}): MoMoIpnPayload => {
-      const base: Omit<MoMoIpnPayload, 'signature'> = {
-        partnerCode: 'MOMOATM4',
-        orderId: 'order-123',
-        requestId: 'req-456',
-        amount: 100000,
-        orderInfo: 'Test payment',
-        orderType: 'momo_wallet',
-        transId: 9999,
-        resultCode: 0,
-        message: 'Successful.',
-        payType: 'qr',
-        responseTime: 1700000000000,
-        extraData: '',
-      };
-      const rawHash =
-        `accessKey=${MOCK_CONFIG.MOMO_ACCESS_KEY}` +
-        `&amount=${base.amount}` +
-        `&extraData=${base.extraData}` +
-        `&message=${base.message}` +
-        `&orderId=${base.orderId}` +
-        `&orderInfo=${base.orderInfo}` +
-        `&orderType=${base.orderType}` +
-        `&partnerCode=${base.partnerCode}` +
-        `&payType=${base.payType}` +
-        `&requestId=${base.requestId}` +
-        `&responseTime=${base.responseTime}` +
-        `&resultCode=${base.resultCode}` +
-        `&transId=${base.transId}`;
-      const { createHmac } = require('crypto');
-      const sig = createHmac('sha256', MOCK_CONFIG.MOMO_SECRET_KEY).update(rawHash).digest('hex');
-      return { ...base, ...overrides, signature: overrides.signature ?? sig };
-    };
+  it('returns false for a tampered signature', () => {
+    expect(adapter.verifyIpnSignature(makeIpnPayload({ signature: 'deadbeef' + '0'.repeat(56) }))).toBe(false);
+  });
 
-    it('returns true for a valid signature', () => {
-      expect(service.verifyIpnSignature(makePayload())).toBe(true);
-    });
-
-    it('returns false when signature is tampered', () => {
-      const payload = makePayload({ signature: 'deadbeef' + '0'.repeat(56) });
-      expect(service.verifyIpnSignature(payload)).toBe(false);
-    });
-
-    it('returns false when amount is changed but signature is original', () => {
-      const payload = makePayload();
-      payload.amount = 999999; // tamper amount after signature computed
-      expect(service.verifyIpnSignature(payload)).toBe(false);
-    });
+  it('returns false when amount is changed after signing', () => {
+    const payload = makeIpnPayload();
+    payload.amount = 999999;
+    expect(adapter.verifyIpnSignature(payload)).toBe(false);
   });
 });

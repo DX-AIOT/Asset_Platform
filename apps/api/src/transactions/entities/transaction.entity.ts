@@ -70,6 +70,15 @@ export class Transaction {
   @Column({ type: 'varchar', unique: true, nullable: true })
   momoOrderId!: string | null;
 
+  @Column({ type: 'varchar', unique: true, nullable: true })
+  momoRequestId!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  momoPaymentUrl!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  momoTransId!: string | null;
+
   @Column({
     type: 'enum',
     enum: TransactionStatus,
@@ -85,6 +94,9 @@ export class Transaction {
 
   @Column({ type: 'timestamptz', nullable: true })
   releasedAt!: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  releaseAfter!: Date | null;
 
   @CreateDateColumn()
   createdAt!: Date;
