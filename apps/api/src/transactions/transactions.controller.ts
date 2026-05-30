@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -39,6 +40,7 @@ export class TransactionsController {
 
   @Post('transactions')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Initiate purchase — creates transaction and returns MoMo payment URL' })
   initiate(@Body() dto: InitiateTransactionDto, @CurrentUser() user: { id: string }) {
@@ -55,6 +57,7 @@ export class TransactionsController {
 
   @Post('transactions/:id/confirm-receipt')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Buyer confirms receipt — triggers MoMo escrow release to seller' })
   confirmReceipt(@Param('id') id: string, @CurrentUser() user: { id: string }) {
@@ -63,6 +66,7 @@ export class TransactionsController {
 
   @Post('transactions/:id/dispute')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Buyer raises dispute — escrow release paused' })
   raiseDispute(

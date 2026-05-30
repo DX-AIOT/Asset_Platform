@@ -1,4 +1,5 @@
 import { Body, Controller, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -18,6 +19,7 @@ export class AssetIntelligenceController {
   constructor(private readonly autoCategoryDuplicateService: AutoCategoryDuplicateService) {}
 
   @Post('auto-category-duplicate')
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({
     summary: 'Classify a candidate asset and detect duplicates',
     description:

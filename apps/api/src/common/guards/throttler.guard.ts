@@ -1,4 +1,4 @@
-import { ExecutionContext, Injectable, Logger } from '@nestjs/common';
+import { ExecutionContext, HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ThrottlerGuard, ThrottlerLimitDetail } from '@nestjs/throttler';
 
 @Injectable()
@@ -25,6 +25,9 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
         `retryAfter=${retryAfter}s`,
     );
 
-    return super.throwThrottlingException(context, throttlerLimitDetail);
+    throw new HttpException(
+      { statusCode: HttpStatus.TOO_MANY_REQUESTS, message: 'Too Many Requests', retryAfter },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 }

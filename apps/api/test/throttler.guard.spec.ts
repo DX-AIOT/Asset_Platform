@@ -1,5 +1,5 @@
-import { ExecutionContext } from '@nestjs/common';
-import { ThrottlerException, ThrottlerLimitDetail } from '@nestjs/throttler';
+import { ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
+import { ThrottlerLimitDetail } from '@nestjs/throttler';
 import { CustomThrottlerGuard } from '../src/common/guards/throttler.guard';
 
 const makeLimitDetail = (overrides: Partial<ThrottlerLimitDetail> = {}): ThrottlerLimitDetail => ({
@@ -19,13 +19,14 @@ const makeContext = (url = '/api/auth/login', ip = '127.0.0.1') => {
   const mockReq = { url, ip };
   const mockRes = { setHeader };
   return {
+    context: { setHeader, mockReq, mockRes },
     switchToHttp: () => ({
       getRequest: () => mockReq,
       getResponse: () => mockRes,
     }),
     getHandler: () => ({}),
     getClass: () => ({}),
-  } as unknown as ExecutionContext;
+  } as unknown as ExecutionContext & { context: { setHeader: jest.Mock } };
 };
 
 describe('CustomThrottlerGuard', () => {
@@ -37,13 +38,7 @@ describe('CustomThrottlerGuard', () => {
       { isSet: false } as any,
       {} as any,
     );
-    // Stub the parent so we don't need the full DI chain
-    jest
-      .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(guard)), 'throwThrottlingException')
-      .mockResolvedValue(undefined);
   });
-
-  afterEach(() => jest.restoreAllMocks());
 
   it('sets Retry-After header before throwing', async () => {
     const ctx = makeContext();
@@ -52,20 +47,46 @@ describe('CustomThrottlerGuard', () => {
 
     await expect(
       (guard as any).throwThrottlingException(ctx, detail),
-    ).resolves.toBeUndefined();
+    ).rejects.toBeInstanceOf(HttpException);
 
     expect(res.setHeader).toHaveBeenCalledWith('Retry-After', 30);
   });
 
-  it('calls parent throwThrottlingException', async () => {
+  it('throws HttpException with the required 429 response shape', async () => {
     const ctx = makeContext();
-    const detail = makeLimitDetail();
-    const parentSpy = jest
-      .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(guard)), 'throwThrottlingException')
-      .mockResolvedValue(undefined);
+    const detail = makeLimitDetail({ timeToExpire: 25.7 });
 
-    await (guard as any).throwThrottlingException(ctx, detail);
+    let thrown: HttpException | undefined;
+    try {
+      await (guard as any).throwThrottlingException(ctx, detail);
+    } catch (e) {
+      thrown = e as HttpException;
+    }
 
-    expect(parentSpy).toHaveBeenCalledWith(ctx, detail);
+    expect(thrown).toBeInstanceOf(HttpException);
+    expect(thrown!.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+
+    const body = thrown!.getResponse() as { statusCode: number; message: string; retryAfter: number };
+    expect(body.statusCode).toBe(429);
+    expect(body.message).toBe('Too Many Requests');
+    expect(body.retryAfter).toBe(26);
+  });
+
+  it('rounds fractional timeToExpire up', async () => {
+    const ctx = makeContext();
+    const detail = makeLimitDetail({ timeToExpire: 1.1 });
+
+    let thrown: HttpException | undefined;
+    try {
+      await (guard as any).throwThrottlingException(ctx, detail);
+    } catch (e) {
+      thrown = e as HttpException;
+    }
+
+    const body = thrown!.getResponse() as { retryAfter: number };
+    expect(body.retryAfter).toBe(2);
+
+    const res = ctx.switchToHttp().getResponse() as { setHeader: jest.Mock };
+    expect(res.setHeader).toHaveBeenCalledWith('Retry-After', 2);
   });
 });

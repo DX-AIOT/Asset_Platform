@@ -55,6 +55,7 @@ export class AiController {
   }
 
   @Post('barcode-lookup')
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({
     summary: 'Look up product data from a barcode',
     description: 'Returns product name, brand, and category from the built-in barcode catalogue. Falls back to a generic result when no match is found.',
@@ -70,6 +71,7 @@ export class AiController {
   }
 
   @Post('valuation')
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({
     summary: 'Estimate current market value for an asset',
     description:
@@ -84,6 +86,7 @@ export class AiController {
   }
 
   @Post('condition-assessment')
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({
     summary: 'Assess asset condition from an image',
     description: 'Uses OpenAI Vision to score the physical condition of the asset on a new→poor scale.',
@@ -97,7 +100,7 @@ export class AiController {
   }
 
   @Post('listing-price-suggest')
-  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({
     summary: 'Suggest a listing price for an asset',
     description:
@@ -114,6 +117,7 @@ export class AiController {
   }
 
   @Get('listing-autofill/:itemId')
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({
     summary: 'Pre-fill a listing draft from asset data',
     description:
