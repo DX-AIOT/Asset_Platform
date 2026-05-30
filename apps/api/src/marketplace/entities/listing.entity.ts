@@ -19,10 +19,12 @@ export enum ListingType {
 export enum ListingStatus {
   DRAFT = 'draft',
   ACTIVE = 'active',
+  INACTIVE = 'inactive',
   PAUSED = 'paused',
   SOLD = 'sold',
   EXPIRED = 'expired',
   CANCELLED = 'cancelled',
+  DELETED = 'deleted',
 }
 
 export enum ListingCondition {
@@ -55,6 +57,9 @@ export class Listing {
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   price!: number;
 
+  @Column({ type: 'varchar', default: 'USD' })
+  currency!: string;
+
   @Column({
     type: 'enum',
     enum: ListingCondition,
@@ -84,6 +89,21 @@ export class Listing {
 
   @Column({ type: 'varchar', nullable: true })
   location!: string | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  lat!: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  lng!: number | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  city!: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  publishedAt!: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  expiresAt!: Date | null;
 
   @CreateDateColumn()
   createdAt!: Date;
