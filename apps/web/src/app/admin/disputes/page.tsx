@@ -15,28 +15,34 @@ import type { BadgeProps } from '@/components/ui/badge';
 
 const STATUS_OPTIONS: { label: string; value: TransactionStatus | '' }[] = [
   { label: 'All', value: '' },
-  { label: 'Disputed', value: 'DISPUTED' },
-  { label: 'Held', value: 'HELD' },
-  { label: 'Released', value: 'RELEASED' },
-  { label: 'Refunded', value: 'REFUNDED' },
+  { label: 'Disputed', value: 'disputed' },
+  { label: 'Held', value: 'escrow_held' },
+  { label: 'Released', value: 'released_to_seller' },
+  { label: 'Refunded', value: 'buyer_refunded' },
 ];
 
 const STATUS_BADGE_VARIANT: Record<TransactionStatus, BadgeProps['variant']> = {
-  DISPUTED: 'destructive',
-  HELD: 'warning',
-  RELEASED: 'success',
-  REFUNDED: 'secondary',
+  disputed: 'destructive',
+  escrow_held: 'warning',
+  released_to_seller: 'success',
+  buyer_refunded: 'secondary',
+  pending_payment: 'default',
+  payment_failed: 'destructive',
+  release_failed: 'warning',
 };
 
 const STATUS_LABELS: Record<TransactionStatus, string> = {
-  DISPUTED: 'Disputed',
-  HELD: 'Held',
-  RELEASED: 'Released',
-  REFUNDED: 'Refunded',
+  disputed: 'Disputed',
+  escrow_held: 'Held',
+  released_to_seller: 'Released',
+  buyer_refunded: 'Refunded',
+  pending_payment: 'Pending',
+  payment_failed: 'Payment Failed',
+  release_failed: 'Release Failed',
 };
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+function formatVND(amount: number): string {
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
 function formatDate(iso: string | null): string {
@@ -58,7 +64,7 @@ export default function DisputesPage() {
   const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<TransactionStatus | ''>('DISPUTED');
+  const [statusFilter, setStatusFilter] = useState<TransactionStatus | ''>('disputed');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   // Role guard — redirect non-admins to 403
@@ -79,7 +85,7 @@ export default function DisputesPage() {
       const result = await getAdminTransactions(
         statusFilter ? { status: statusFilter } : undefined
       );
-      setTransactions(result.transactions);
+      setTransactions(result);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load transactions');
     } finally {
@@ -93,16 +99,17 @@ export default function DisputesPage() {
     }
   }, [user, fetchTransactions]);
 
-  const handleResolve = async (id: string, resolution: 'buyer' | 'seller') => {
+  const handleResolve = async (id: string, side: 'buyer' | 'seller') => {
     setResolvingId(id);
     try {
+      const resolution = side === 'buyer' ? 'BUYER_REFUNDED' : 'SELLER_RELEASED';
       const updated = await resolveAdminTransaction(id, resolution);
       setTransactions((prev) =>
         prev.map((t) => (t.id === id ? { ...t, status: updated.status } : t))
       );
       showToast({
         title: 'Dispute resolved',
-        description: `Released to ${resolution === 'buyer' ? 'buyer' : 'seller'} successfully.`,
+        description: `Released to ${side === 'buyer' ? 'buyer' : 'seller'} successfully.`,
         variant: 'success',
       });
     } catch (err: unknown) {
@@ -254,7 +261,7 @@ export default function DisputesPage() {
                       Amount
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Disputed At
+                      Created At
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
@@ -266,27 +273,27 @@ export default function DisputesPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
                   {transactions.map((tx) => {
-                    const canResolve = tx.status === 'DISPUTED' || tx.status === 'HELD';
+                    const canResolve = tx.status === 'disputed';
                     const isResolving = resolvingId === tx.id;
                     return (
                       <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 text-xs text-gray-500 font-mono whitespace-nowrap">
-                          {tx.transactionId}
+                          {tx.id.slice(0, 8)}…
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900 max-w-[180px] truncate">
-                          {tx.listingTitle}
+                          {tx.listingId.slice(0, 8)}…
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                          {tx.buyerEmail}
+                          {tx.buyerId.slice(0, 8)}…
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                          {tx.sellerEmail}
+                          {tx.sellerId.slice(0, 8)}…
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900 font-medium text-right whitespace-nowrap">
-                          {formatCurrency(tx.amount)}
+                          {formatVND(tx.amountVND)}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                          {formatDate(tx.disputedAt)}
+                          {formatDate(tx.createdAt)}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <Badge variant={STATUS_BADGE_VARIANT[tx.status]}>

@@ -19,12 +19,7 @@ import type {
   ListingAutofillDraft,
   ListingCondition,
 } from '@/types/listings';
-import type {
-  AdminTransaction,
-  AdminTransactionsResponse,
-  TransactionStatus,
-  ResolutionSide,
-} from '@/types/admin';
+import type { AdminTransaction, TransactionStatus } from '@/types/admin';
 import { getApiBaseUrl } from './api-base-url';
 
 const API_URL = getApiBaseUrl();
@@ -218,18 +213,18 @@ export async function suggestListingPrice(params: {
 
 export async function getAdminTransactions(params?: {
   status?: TransactionStatus;
-}): Promise<AdminTransactionsResponse> {
+}): Promise<AdminTransaction[]> {
   const query = new URLSearchParams();
   if (params?.status) query.set('status', params.status);
   const qs = query.toString();
-  return fetchWithAuth<AdminTransactionsResponse>(`/admin/transactions${qs ? `?${qs}` : ''}`);
+  return fetchWithAuth<AdminTransaction[]>(`/admin/transactions${qs ? `?${qs}` : ''}`);
 }
 
 export async function resolveAdminTransaction(
   id: string,
-  resolution: ResolutionSide
+  resolution: 'BUYER_REFUNDED' | 'SELLER_RELEASED'
 ): Promise<AdminTransaction> {
-  return fetchWithAuth<AdminTransaction>(`/admin/transactions/${id}/resolve`, {
+  return fetchWithAuth<AdminTransaction>(`/admin/transactions/${id}/resolve-dispute`, {
     method: 'POST',
     body: JSON.stringify({ resolution }),
   });

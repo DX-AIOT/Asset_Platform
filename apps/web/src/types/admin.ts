@@ -1,20 +1,19 @@
-export type TransactionStatus = 'DISPUTED' | 'HELD' | 'RELEASED' | 'REFUNDED';
-export type ResolutionSide = 'buyer' | 'seller';
+export type TransactionStatus =
+  | 'disputed'
+  | 'escrow_held'
+  | 'released_to_seller'
+  | 'buyer_refunded'
+  | 'pending_payment'
+  | 'payment_failed'
+  | 'release_failed';
 
 export interface AdminTransaction {
   id: string;
-  transactionId: string;
-  listingTitle: string;
-  buyerEmail: string;
-  sellerEmail: string;
-  amount: number;
-  disputedAt: string | null;
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+  amountVND: number;
   status: TransactionStatus;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface AdminTransactionsResponse {
-  transactions: AdminTransaction[];
-  total: number;
 }
