@@ -59,6 +59,13 @@ export default function AppLayout() {
           headerLargeTitle: true,
         }}
       />
+      <Stack.Screen
+        name="transactions"
+        options={{
+          title: 'My Transactions',
+          headerLargeTitle: true,
+        }}
+      />
     </Stack>
   );
 }

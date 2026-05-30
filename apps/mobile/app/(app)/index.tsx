@@ -103,6 +103,18 @@ export default function Home() {
             </View>
             <Text style={styles.actionButtonArrow}>›</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/(app)/transactions')}
+          >
+            <Text style={styles.actionButtonIcon}>🧾</Text>
+            <View style={styles.actionButtonContent}>
+              <Text style={styles.actionButtonTitle}>My Transactions</Text>
+              <Text style={styles.actionButtonSubtitle}>Track escrow &amp; disputes</Text>
+            </View>
+            <Text style={styles.actionButtonArrow}>›</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>

@@ -94,20 +94,58 @@ export const LOCATION_OPTIONS = [
   'Other',
 ];
 
-export interface PriceHistoryPoint {
-  date: string;
-  value: number;
-  source: string;
+export type EscrowStatus = 'HELD' | 'RELEASED' | 'DISPUTED' | 'REFUNDED';
+
+export type DisputeReason =
+  | 'Item not received'
+  | 'Item differs from description'
+  | 'Damaged'
+  | 'Other';
+
+export interface Transaction {
+  id: string;
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+  amount: number;
+  currency: string;
+  escrowStatus: EscrowStatus;
+  escrowHeldAt: string;
+  escrowAutoReleaseAt: string;
+  disputeReason?: string;
+  disputeDescription?: string;
+  disputeFiledAt?: string;
+  releasedAt?: string;
+  refundedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  listingTitle?: string;
+  buyerName?: string;
+  sellerName?: string;
 }
 
-export interface Trend {
-  changeAmount: number;
-  changePercent: number;
-  direction: 'up' | 'down' | 'flat';
+export interface FiledDispute {
+  reason: DisputeReason;
+  description: string;
 }
 
-export interface PriceHistoryResponse {
-  points: PriceHistoryPoint[];
-  latestValue: number | null;
-  trends: Trend | null;
-}
+export const ESCROW_STATUS_LABELS: Record<EscrowStatus, string> = {
+  HELD: 'Held in Escrow',
+  RELEASED: 'Released to Seller',
+  DISPUTED: 'Under Dispute',
+  REFUNDED: 'Refunded',
+};
+
+export const ESCROW_STATUS_COLORS: Record<EscrowStatus, string> = {
+  HELD: '#007AFF',
+  RELEASED: '#34C759',
+  DISPUTED: '#FF9500',
+  REFUNDED: '#8E8E93',
+};
+
+export const DISPUTE_REASONS: DisputeReason[] = [
+  'Item not received',
+  'Item differs from description',
+  'Damaged',
+  'Other',
+];
