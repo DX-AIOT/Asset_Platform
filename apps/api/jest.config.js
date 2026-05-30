@@ -16,5 +16,7 @@ module.exports = {
   // All swagger decorators are metadata-only and have no effect on test logic.
   moduleNameMapper: {
     '^@nestjs/swagger$': '<rootDir>/test/__mocks__/nestjs-swagger.js',
+    '^openai$': '<rootDir>/test/__mocks__/openai.js',
+    '^ioredis$': '<rootDir>/test/__mocks__/ioredis.js',
   },
 };

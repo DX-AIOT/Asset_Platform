@@ -1,13 +1,16 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -146,6 +149,21 @@ export class ItemsController {
     return this.priceHistoryService.getHistory(id, user.id);
   }
 
+  @Get('export')
+  @HttpCode(HttpStatus.OK)
+  @Header('Content-Type', 'text/csv')
+  @Header('Content-Disposition', 'attachment; filename="items.csv"')
+  @ApiOperation({
+    summary: 'Export all assets as CSV',
+    description: 'Downloads all assets owned by the authenticated user as a UTF-8 CSV file.',
+  })
+  @ApiResponse({ status: 200, description: 'CSV file download.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  async exportItems(@CurrentUser() user: any): Promise<StreamableFile> {
+    const csv = await this.itemsService.exportCsv(user.id);
+    return new StreamableFile(Buffer.from(csv, 'utf-8'));
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a single asset by ID' })
   @ApiParam({ name: 'id', description: 'Asset UUID' })
@@ -157,5 +175,19 @@ export class ItemsController {
     @Param('id') id: string,
   ): Promise<ItemResponseDto> {
     return this.itemsService.findOne(id, user.id);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete an asset by ID' })
+  @ApiParam({ name: 'id', description: 'Asset UUID' })
+  @ApiResponse({ status: 204, description: 'Asset deleted.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  @ApiResponse({ status: 404, description: 'Asset not found or not owned by caller.' })
+  async deleteItem(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+  ): Promise<void> {
+    return this.itemsService.remove(id, user.id);
   }
 }

@@ -106,6 +106,37 @@ export class ItemsService {
     return item;
   }
 
+  async remove(id: string, userId: string): Promise<void> {
+    const item = await this.findOne(id, userId);
+    await this.itemsRepository.remove(item);
+  }
+
+  async exportCsv(userId: string): Promise<string> {
+    const items = await this.itemsRepository.find({ where: { userId } });
+    const HEADERS = [
+      'id', 'name', 'brand', 'model', 'category', 'condition',
+      'serial', 'purchaseDate', 'purchasePrice', 'location',
+      'warrantyExpiry', 'notes', 'depreciationRatePercent',
+      'depreciatedValue', 'createdAt',
+    ];
+    const escape = (v: unknown): string => {
+      if (v == null) return '';
+      const s = String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+    const rows = items.map((item) =>
+      [
+        item.id, item.name, item.brand, item.model, item.category, item.condition,
+        item.serial, item.purchaseDate, item.purchasePrice, item.location,
+        item.warrantyExpiry, item.notes, item.depreciationRatePercent,
+        item.depreciatedValue, item.createdAt,
+      ].map(escape).join(','),
+    );
+    return [HEADERS.join(','), ...rows].join('\n');
+  }
+
   async calculatePortfolioValue(
     userId: string,
   ): Promise<PortfolioValueResponseDto> {

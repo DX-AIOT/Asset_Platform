@@ -31,6 +31,7 @@ function makeService(items: any[]): { service: ItemsService; repo: any } {
     }),
     create: jest.fn().mockImplementation((data) => ({ id: 'new-item', ...data })),
     save: jest.fn().mockImplementation((item) => Promise.resolve(item)),
+    remove: jest.fn().mockResolvedValue(undefined),
     createQueryBuilder: jest.fn(),
   } as any;
   const conditionAssessmentService = {
@@ -238,6 +239,58 @@ describe('ItemsService — depreciation', () => {
       expect(result.total).toBe(0);
       expect(result.depreciated).toBe(0);
     });
+  });
+});
+
+describe('ItemsService — remove', () => {
+  it('removes an item owned by the caller', async () => {
+    const item = makeItem({ id: 'item-1', userId: 'user-1' });
+    const { service, repo } = makeService([item]);
+    await service.remove('item-1', 'user-1');
+    expect(repo.remove).toHaveBeenCalledWith(item);
+  });
+
+  it('throws NotFoundException when item not found', async () => {
+    const { service } = makeService([]);
+    await expect(service.remove('missing', 'user-1')).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('ItemsService — exportCsv', () => {
+  it('returns header row as first line', async () => {
+    const { service } = makeService([]);
+    const csv = await service.exportCsv('user-1');
+    const firstLine = csv.split('\n')[0];
+    expect(firstLine).toBe(
+      'id,name,brand,model,category,condition,serial,purchaseDate,purchasePrice,location,warrantyExpiry,notes,depreciationRatePercent,depreciatedValue,createdAt',
+    );
+  });
+
+  it('returns one data row per item', async () => {
+    const items = [
+      makeItem({ id: 'i-1', userId: 'user-1', name: 'Laptop' }),
+      makeItem({ id: 'i-2', userId: 'user-1', name: 'Phone' }),
+    ];
+    const { service } = makeService(items);
+    const csv = await service.exportCsv('user-1');
+    const lines = csv.split('\n');
+    expect(lines).toHaveLength(3); // header + 2 rows
+  });
+
+  it('escapes commas and quotes in field values', async () => {
+    const items = [
+      makeItem({ id: 'i-1', userId: 'user-1', name: 'Desk, oak', notes: 'Has "scratches"' }),
+    ];
+    const { service } = makeService(items);
+    const csv = await service.exportCsv('user-1');
+    expect(csv).toContain('"Desk, oak"');
+    expect(csv).toContain('"Has ""scratches"""');
+  });
+
+  it('returns only header when user has no items', async () => {
+    const { service } = makeService([]);
+    const csv = await service.exportCsv('user-1');
+    expect(csv.split('\n')).toHaveLength(1);
   });
 });
 
