@@ -41,8 +41,8 @@ const STATUS_LABELS: Record<TransactionStatus, string> = {
   release_failed: 'Release Failed',
 };
 
-function formatVND(amount: number): string {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+function formatUSD(amount: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 }
 
 function formatDate(iso: string | null): string {
@@ -62,6 +62,7 @@ export default function DisputesPage() {
   const { showToast } = useToast();
 
   const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<TransactionStatus | ''>('disputed');
@@ -85,7 +86,8 @@ export default function DisputesPage() {
       const result = await getAdminTransactions(
         statusFilter ? { status: statusFilter } : undefined
       );
-      setTransactions(result);
+      setTransactions(result.transactions);
+      setTotal(result.total);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load transactions');
     } finally {
@@ -185,7 +187,7 @@ export default function DisputesPage() {
             <p className="mt-1 text-sm text-gray-500">
               {loading
                 ? 'Loading transactions…'
-                : `${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`}
+                : `${total} transaction${total !== 1 ? 's' : ''}`}
             </p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -258,10 +260,10 @@ export default function DisputesPage() {
                       Seller
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Amount
+                      Amount (USD)
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created At
+                      Disputed At
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
@@ -280,20 +282,20 @@ export default function DisputesPage() {
                         <td className="px-4 py-3 text-xs text-gray-500 font-mono whitespace-nowrap">
                           {tx.id.slice(0, 8)}…
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 max-w-[180px] truncate">
-                          {tx.listingId.slice(0, 8)}…
+                        <td className="px-4 py-3 text-sm text-gray-900 max-w-[200px] truncate">
+                          {tx.listingTitle}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                          {tx.buyerId.slice(0, 8)}…
+                          {tx.buyerEmail}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                          {tx.sellerId.slice(0, 8)}…
+                          {tx.sellerEmail}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900 font-medium text-right whitespace-nowrap">
-                          {formatVND(tx.amountVND)}
+                          {formatUSD(tx.amount)}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                          {formatDate(tx.createdAt)}
+                          {formatDate(tx.disputedAt)}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <Badge variant={STATUS_BADGE_VARIANT[tx.status]}>

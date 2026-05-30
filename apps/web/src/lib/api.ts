@@ -19,7 +19,7 @@ import type {
   ListingAutofillDraft,
   ListingCondition,
 } from '@/types/listings';
-import type { AdminTransaction, TransactionStatus } from '@/types/admin';
+import type { AdminTransaction, AdminTransactionsResponse, TransactionStatus } from '@/types/admin';
 import { getApiBaseUrl } from './api-base-url';
 
 const API_URL = getApiBaseUrl();
@@ -213,11 +213,11 @@ export async function suggestListingPrice(params: {
 
 export async function getAdminTransactions(params?: {
   status?: TransactionStatus;
-}): Promise<AdminTransaction[]> {
+}): Promise<AdminTransactionsResponse> {
   const query = new URLSearchParams();
   if (params?.status) query.set('status', params.status);
   const qs = query.toString();
-  return fetchWithAuth<AdminTransaction[]>(`/admin/transactions${qs ? `?${qs}` : ''}`);
+  return fetchWithAuth<AdminTransactionsResponse>(`/admin/transactions${qs ? `?${qs}` : ''}`);
 }
 
 export async function resolveAdminTransaction(

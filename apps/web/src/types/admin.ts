@@ -9,11 +9,18 @@ export type TransactionStatus =
 
 export interface AdminTransaction {
   id: string;
-  listingId: string;
-  buyerId: string;
-  sellerId: string;
-  amountVND: number;
+  transactionId: string;
+  listingTitle: string;
+  buyerEmail: string;
+  sellerEmail: string;
+  amount: number;
+  disputedAt: string | null;
   status: TransactionStatus;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminTransactionsResponse {
+  transactions: AdminTransaction[];
+  total: number;
 }
