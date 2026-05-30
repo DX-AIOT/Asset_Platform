@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,45 @@ import {
   Image,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { itemsApi } from '../../services/api';
+import { itemsApi } from '../../services/itemsApi';
 import { aiApi } from '../../services/aiApi';
-import { ItemCategory, CATEGORY_LABELS, LOCATION_OPTIONS } from '../../types/item';
+import { CATEGORY_LABELS, ItemCategory, ItemCondition, LOCATION_OPTIONS } from '../../types/item';
+
+const CONDITION_LABELS: Record<ItemCondition, string> = {
+  [ItemCondition.NEW]: 'New',
+  [ItemCondition.LIKE_NEW]: 'Like New',
+  [ItemCondition.GOOD]: 'Good',
+  [ItemCondition.FAIR]: 'Fair',
+  [ItemCondition.POOR]: 'Poor',
+};
+
+const CONDITION_ORDER: ItemCondition[] = [
+  ItemCondition.NEW,
+  ItemCondition.LIKE_NEW,
+  ItemCondition.GOOD,
+  ItemCondition.FAIR,
+  ItemCondition.POOR,
+];
+
+const mapAssessedToItemCondition = (
+  assessed: 'excellent' | 'good' | 'fair' | 'poor',
+): ItemCondition => {
+  if (assessed === 'excellent') return ItemCondition.LIKE_NEW;
+  if (assessed === 'good') return ItemCondition.GOOD;
+  if (assessed === 'fair') return ItemCondition.FAIR;
+  return ItemCondition.POOR;
+};
 
 export default function AddItem() {
   const router = useRouter();
-  const { scannedBarcode } = useLocalSearchParams<{ scannedBarcode?: string }>();
+  const { scannedBarcode, itemId } = useLocalSearchParams<{ scannedBarcode?: string; itemId?: string }>();
+  const isEditMode = useMemo(() => Boolean(itemId), [itemId]);
   const [loading, setLoading] = useState(false);
+  const [loadingItem, setLoadingItem] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -29,6 +57,7 @@ export default function AddItem() {
     serial: '',
     purchaseDate: '',
     purchasePrice: '',
+    condition: ItemCondition.GOOD,
     location: '',
     notes: '',
   });
@@ -36,14 +65,52 @@ export default function AddItem() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [showConditionPicker, setShowConditionPicker] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [assessmentLoading, setAssessmentLoading] = useState(false);
+  const [assessmentSummary, setAssessmentSummary] = useState<string | null>(null);
+  const [assessmentNotes, setAssessmentNotes] = useState<string | null>(null);
+  const [assessmentNeedsReview, setAssessmentNeedsReview] = useState(false);
+  const [conditionTouched, setConditionTouched] = useState(false);
 
   const mapProductCategoryToItemCategory = (rawCategory: string): ItemCategory => {
     const normalized = rawCategory.toLowerCase();
     if (normalized.includes('audio')) return ItemCategory.ELECTRONICS;
-    if (normalized.includes('computer') || normalized.includes('peripheral')) return ItemCategory.ELECTRONICS;
+    if (normalized.includes('computer') || normalized.includes('peripheral'))
+      return ItemCategory.ELECTRONICS;
     return ItemCategory.OTHER;
   };
+
+  useEffect(() => {
+    if (!itemId) return;
+
+    const loadItem = async () => {
+      setLoadingItem(true);
+      try {
+        const response = await itemsApi.getItemById(itemId);
+        const current = response.data;
+        setFormData({
+          name: current.name,
+          brand: current.brand ?? '',
+          model: current.model ?? '',
+          category: current.category,
+          serial: current.serial ?? '',
+          purchaseDate: current.purchaseDate ?? '',
+          purchasePrice: current.purchasePrice ? String(current.purchasePrice) : '',
+          condition: current.condition,
+          location: current.location ?? '',
+          notes: current.notes ?? '',
+        });
+        setPhotos(current.photos ?? []);
+      } catch {
+        Alert.alert('Error', 'Failed to load item details.');
+      } finally {
+        setLoadingItem(false);
+      }
+    };
+
+    void loadItem();
+  }, [itemId]);
 
   useEffect(() => {
     const barcode = scannedBarcode?.trim();
@@ -76,14 +143,20 @@ export default function AddItem() {
         });
 
         if (!result.found) {
-          Alert.alert('Barcode saved', 'No product info found. Barcode has been saved in Serial Number.');
+          Alert.alert(
+            'Barcode saved',
+            'No product info found. Barcode has been saved in Serial Number.'
+          );
         }
       } catch {
         setFormData((current) => ({
           ...current,
           serial: current.serial || barcode,
         }));
-        Alert.alert('Lookup failed', 'Could not fetch product info. Barcode was saved in Serial Number.');
+        Alert.alert(
+          'Lookup failed',
+          'Could not fetch product info. Barcode was saved in Serial Number.'
+        );
       } finally {
         setLookupLoading(false);
       }
@@ -92,11 +165,44 @@ export default function AddItem() {
     void runLookup();
   }, [scannedBarcode]);
 
+  useEffect(() => {
+    const firstPhoto = photos[0];
+    if (!firstPhoto || conditionTouched) return;
+
+    const runConditionAssessment = async () => {
+      setAssessmentLoading(true);
+      try {
+        const result = await aiApi.assessCondition(firstPhoto, itemId);
+        const nextCondition = mapAssessedToItemCondition(result.condition);
+        const confidencePercent = Math.round(result.confidence * 100);
+        const requiresReview = result.fallbackSuggested || result.confidence === 0;
+        if (!requiresReview) {
+          setFormData((current) => ({ ...current, condition: nextCondition }));
+        }
+        setAssessmentNeedsReview(requiresReview);
+        setAssessmentSummary(
+          requiresReview
+            ? `AI suggested ${CONDITION_LABELS[nextCondition]} (${confidencePercent}%). Please review manually.`
+            : `AI suggested ${CONDITION_LABELS[nextCondition]} (${confidencePercent}%).`,
+        );
+        setAssessmentNotes(result.notes?.trim() ? result.notes.trim() : null);
+      } catch {
+        setAssessmentNeedsReview(false);
+        setAssessmentNotes(null);
+        setAssessmentSummary('Could not auto-assess condition. You can set it manually.');
+      } finally {
+        setAssessmentLoading(false);
+      }
+    };
+
+    void runConditionAssessment();
+  }, [photos, conditionTouched, itemId]);
+
   const requestPermissions = async () => {
     if (Platform.OS !== 'web') {
       const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
       const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (cameraStatus !== 'granted' || mediaStatus !== 'granted') {
         Alert.alert(
           'Permissions Required',
@@ -108,7 +214,13 @@ export default function AddItem() {
     return true;
   };
 
+  const MAX_PHOTOS = 10;
+
   const pickImageFromCamera = async () => {
+    if (photos.length >= MAX_PHOTOS) {
+      Alert.alert('Limit reached', `You can add up to ${MAX_PHOTOS} photos per item.`);
+      return;
+    }
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
 
@@ -120,41 +232,71 @@ export default function AddItem() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setPhotos([...photos, result.assets[0].uri]);
+      setPhotos((current) => {
+        if (current.length >= MAX_PHOTOS) return current;
+        return [...current, result.assets[0].uri];
+      });
     }
   };
 
   const pickImageFromGallery = async () => {
+    if (photos.length >= MAX_PHOTOS) {
+      Alert.alert('Limit reached', `You can add up to ${MAX_PHOTOS} photos per item.`);
+      return;
+    }
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
+      selectionLimit: MAX_PHOTOS,
       aspect: [4, 3],
       quality: 0.8,
     });
 
     if (!result.canceled) {
-      const newPhotos = result.assets.map(asset => asset.uri);
-      setPhotos([...photos, ...newPhotos]);
+      const newPhotos = result.assets.map((asset: ImagePicker.ImagePickerAsset) => asset.uri);
+      setPhotos((current) => {
+        const remaining = MAX_PHOTOS - current.length;
+        return [...current, ...newPhotos.slice(0, remaining)];
+      });
     }
   };
 
   const removePhoto = (index: number) => {
-    setPhotos(photos.filter((_: string, i: number) => i !== index));
+    setPhotos((current) => current.filter((_: string, i: number) => i !== index));
+  };
+
+  const movePhoto = (index: number, direction: 'left' | 'right') => {
+    setPhotos((current) => {
+      const targetIndex = direction === 'left' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return current;
+      }
+
+      const reordered = [...current];
+      [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+      return reordered;
+    });
+  };
+
+  const reorderPhoto = (index: number, direction: 'left' | 'right') => {
+    const next = direction === 'left' ? index - 1 : index + 1;
+    if (next < 0 || next >= photos.length) return;
+    setPhotos((prev) => {
+      const updated = [...prev];
+      [updated[index], updated[next]] = [updated[next], updated[index]];
+      return updated;
+    });
   };
 
   const showPhotoOptions = () => {
-    Alert.alert(
-      'Add Photo',
-      'Choose a source',
-      [
-        { text: 'Camera', onPress: pickImageFromCamera },
-        { text: 'Gallery', onPress: pickImageFromGallery },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+    Alert.alert('Add Photo', 'Choose a source', [
+      { text: 'Camera', onPress: pickImageFromCamera },
+      { text: 'Gallery', onPress: pickImageFromGallery },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleSubmit = async () => {
@@ -173,22 +315,35 @@ export default function AddItem() {
         serial: formData.serial || undefined,
         purchaseDate: formData.purchaseDate || undefined,
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
+        condition: formData.condition,
         location: formData.location || undefined,
         notes: formData.notes || undefined,
         photos: photos.length > 0 ? photos : undefined,
       };
 
-      await itemsApi.create(itemData);
-      
-      Alert.alert('Success', 'Item added successfully', [
+      if (itemId) {
+        await itemsApi.update(itemId, itemData);
+      } else {
+        await itemsApi.create(itemData);
+      }
+
+      Alert.alert('Success', isEditMode ? 'Item updated successfully' : 'Item added successfully', [
         { text: 'OK', onPress: () => router.back() },
       ]);
-    } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to add item');
+    } catch {
+      Alert.alert('Error', isEditMode ? 'Failed to update item' : 'Failed to add item');
     } finally {
       setLoading(false);
     }
   };
+
+  if (loadingItem) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -196,9 +351,9 @@ export default function AddItem() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>Cancel</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Item</Text>
-        <TouchableOpacity 
-          onPress={handleSubmit} 
+        <Text style={styles.headerTitle}>{isEditMode ? 'Edit Item' : 'Add Item'}</Text>
+        <TouchableOpacity
+          onPress={handleSubmit}
           style={styles.saveButton}
           disabled={loading}
         >
@@ -225,32 +380,72 @@ export default function AddItem() {
           </TouchableOpacity>
         </View>
 
-        {/* Photos Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photos</Text>
+          <Text style={styles.sectionTitle}>
+            Photos{photos.length > 0 ? ` (${photos.length}/${MAX_PHOTOS})` : ''}
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
             {photos.map((uri: string, index: number) => (
               <View key={index} style={styles.photoWrapper}>
                 <Image source={{ uri }} style={styles.photo} />
+                <View style={styles.reorderControls}>
+                  <TouchableOpacity
+                    style={[styles.reorderButton, index === 0 && styles.reorderButtonDisabled]}
+                    onPress={() => movePhoto(index, 'left')}
+                    disabled={index === 0}
+                  >
+                    <Text style={styles.reorderButtonText}>←</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.reorderButton,
+                      index === photos.length - 1 && styles.reorderButtonDisabled,
+                    ]}
+                    onPress={() => movePhoto(index, 'right')}
+                    disabled={index === photos.length - 1}
+                  >
+                    <Text style={styles.reorderButtonText}>→</Text>
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity
                   style={styles.removePhotoButton}
                   onPress={() => removePhoto(index)}
                 >
                   <Text style={styles.removePhotoText}>×</Text>
                 </TouchableOpacity>
+                <View style={styles.reorderRow}>
+                  <TouchableOpacity
+                    style={[styles.reorderButton, index === 0 && styles.reorderButtonDisabled]}
+                    onPress={() => reorderPhoto(index, 'left')}
+                    disabled={index === 0}
+                  >
+                    <Text style={styles.reorderButtonText}>◀</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.reorderButton,
+                      index === photos.length - 1 && styles.reorderButtonDisabled,
+                    ]}
+                    onPress={() => reorderPhoto(index, 'right')}
+                    disabled={index === photos.length - 1}
+                  >
+                    <Text style={styles.reorderButtonText}>▶</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
-            <TouchableOpacity style={styles.addPhotoButton} onPress={showPhotoOptions}>
-              <Text style={styles.addPhotoText}>+</Text>
-              <Text style={styles.addPhotoLabel}>Add Photo</Text>
-            </TouchableOpacity>
+            {photos.length < MAX_PHOTOS && (
+              <TouchableOpacity style={styles.addPhotoButton} onPress={showPhotoOptions}>
+                <Text style={styles.addPhotoText}>+</Text>
+                <Text style={styles.addPhotoLabel}>Add Photo</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
 
-        {/* Basic Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Name *</Text>
             <TextInput
@@ -295,20 +490,57 @@ export default function AddItem() {
             </TouchableOpacity>
             {showCategoryPicker && (
               <View style={styles.pickerOptions}>
-                {(Object.entries(CATEGORY_LABELS) as [ItemCategory, string][]).map(([key, label]) => (
+                {(Object.entries(CATEGORY_LABELS) as [ItemCategory, string][]).map(
+                  ([key, label]) => (
+                    <TouchableOpacity
+                      key={key}
+                      style={styles.pickerOption}
+                      onPress={() => {
+                        setFormData({ ...formData, category: key });
+                        setShowCategoryPicker(false);
+                      }}
+                    >
+                      <Text style={styles.pickerOptionText}>{label}</Text>
+                    </TouchableOpacity>
+                  )
+                )}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Condition</Text>
+            <TouchableOpacity
+              style={styles.picker}
+              onPress={() => setShowConditionPicker(!showConditionPicker)}
+            >
+              <Text style={styles.pickerText}>{CONDITION_LABELS[formData.condition]}</Text>
+              <Text style={styles.pickerArrow}>▼</Text>
+            </TouchableOpacity>
+            {showConditionPicker && (
+              <View style={styles.pickerOptions}>
+                {CONDITION_ORDER.map((condition) => (
                   <TouchableOpacity
-                    key={key}
+                    key={condition}
                     style={styles.pickerOption}
                     onPress={() => {
-                      setFormData({ ...formData, category: key });
-                      setShowCategoryPicker(false);
+                      setConditionTouched(true);
+                      setFormData({ ...formData, condition });
+                      setShowConditionPicker(false);
                     }}
                   >
-                    <Text style={styles.pickerOptionText}>{label}</Text>
+                    <Text style={styles.pickerOptionText}>{CONDITION_LABELS[condition]}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             )}
+            {assessmentLoading ? <Text style={styles.hintText}>Assessing from first photo...</Text> : null}
+            {assessmentSummary ? (
+              <Text style={[styles.hintText, assessmentNeedsReview && styles.warningHintText]}>
+                {assessmentSummary}
+              </Text>
+            ) : null}
+            {assessmentNotes ? <Text style={styles.hintText}>Notes: {assessmentNotes}</Text> : null}
           </View>
 
           <View style={styles.inputGroup}>
@@ -323,10 +555,9 @@ export default function AddItem() {
           </View>
         </View>
 
-        {/* Purchase Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Purchase Information</Text>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Purchase Date</Text>
             <TextInput
@@ -351,10 +582,9 @@ export default function AddItem() {
           </View>
         </View>
 
-        {/* Location */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Location</Text>
-          
+
           <View style={styles.inputGroup}>
             <TouchableOpacity
               style={styles.picker}
@@ -384,10 +614,9 @@ export default function AddItem() {
           </View>
         </View>
 
-        {/* Notes */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notes</Text>
-          
+
           <TextInput
             style={[styles.input, styles.textArea]}
             value={formData.notes}
@@ -409,6 +638,12 @@ export default function AddItem() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#fff',
   },
   header: {
@@ -442,6 +677,9 @@ const styles = StyleSheet.create({
   },
   disabledText: {
     opacity: 0.5,
+  },
+  warningHintText: {
+    color: '#B45309',
   },
   content: {
     flex: 1,
@@ -481,6 +719,30 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 8,
   },
+  reorderControls: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    right: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  reorderButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(17, 24, 39, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reorderButtonDisabled: {
+    opacity: 0.35,
+  },
+  reorderButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   removePhotoButton: {
     position: 'absolute',
     top: -8,
@@ -496,6 +758,26 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  reorderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  reorderButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 2,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    marginHorizontal: 1,
+  },
+  reorderButtonDisabled: {
+    opacity: 0.3,
+  },
+  reorderButtonText: {
+    fontSize: 12,
+    color: '#333',
   },
   addPhotoButton: {
     width: 100,
@@ -575,6 +857,11 @@ const styles = StyleSheet.create({
   pickerOptionText: {
     fontSize: 16,
     color: '#000',
+  },
+  hintText: {
+    color: '#6b7280',
+    fontSize: 13,
+    marginTop: 8,
   },
   bottomSpacer: {
     height: 40,

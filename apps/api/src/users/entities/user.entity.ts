@@ -23,10 +23,10 @@ export class User {
   @Column()
   password: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   firstName: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   lastName: string;
 
   @Column({
@@ -36,11 +36,18 @@ export class User {
   })
   role: UserRole;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   googleId: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   refreshToken: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  fcmToken: string;
+
+  /** AES-256-GCM encrypted Expo push token. Decrypt before sending. */
+  @Column({ type: 'varchar', nullable: true })
+  pushToken: string;
 
   @Column({ default: true })
   isActive: boolean;

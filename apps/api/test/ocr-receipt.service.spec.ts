@@ -57,4 +57,27 @@ describe('OcrReceiptService normalize', () => {
       confidence: 0,
     });
   });
+
+  it('uses local fallback extract mode when OPENAI_LOCAL_MODE is true', async () => {
+    const configService = {
+      get: jest.fn((key: string) => {
+        if (key === 'OPENAI_LOCAL_MODE') return 'true';
+        return undefined;
+      }),
+    } as unknown as ConfigService;
+    const localService = new OcrReceiptService(configService);
+
+    const result = await localService.extract({
+      imageBase64: 'aGVsbG8=',
+      mimeType: 'image/jpeg',
+    });
+
+    expect(result).toEqual({
+      purchaseDate: null,
+      totalAmount: null,
+      currency: null,
+      warrantyExpiryDate: null,
+      confidence: 0,
+    });
+  });
 });

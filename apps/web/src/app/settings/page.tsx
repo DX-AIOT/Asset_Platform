@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { StateCard } from '@/components/ui/state-card';
 
 export default function SettingsPage() {
   const { user, loading, logout } = useAuth();
@@ -16,7 +17,17 @@ export default function SettingsPage() {
   }, [loading, user, router]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md">
+          <StateCard
+            variant="loading"
+            title="Loading settings"
+            description="Fetching your profile and security settings."
+          />
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -83,9 +94,7 @@ export default function SettingsPage() {
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Profile Information</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Email
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                       <input
                         type="email"
                         value={user.email}
@@ -116,9 +125,7 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Role
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                       <input
                         type="text"
                         value={user.role}

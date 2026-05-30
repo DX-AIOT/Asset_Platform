@@ -1,6 +1,10 @@
 import { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
+import {
+  createNotificationTapSubscription,
+  registerDeviceForPushNotifications,
+} from '../../services/notifications';
 
 export default function AppLayout() {
   const { isAuthenticated } = useAuth();
@@ -11,6 +15,20 @@ export default function AppLayout() {
       router.replace('/(auth)/login');
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    registerDeviceForPushNotifications();
+
+    const tapSubscription = createNotificationTapSubscription((itemId) => {
+      router.push({ pathname: '/item/[id]', params: { id: itemId } });
+    });
+
+    return () => {
+      tapSubscription.remove();
+    };
+  }, [isAuthenticated, router]);
 
   return (
     <Stack screenOptions={{ headerShown: true }}>
@@ -25,6 +43,26 @@ export default function AppLayout() {
         name="inventory"
         options={{
           title: 'My Assets',
+          headerLargeTitle: true,
+        }}
+      />
+      <Stack.Screen
+        name="sharing"
+        options={{
+          title: 'Family Sharing',
+        }}
+      />
+      <Stack.Screen
+        name="marketplace"
+        options={{
+          title: 'Marketplace',
+          headerLargeTitle: true,
+        }}
+      />
+      <Stack.Screen
+        name="transactions"
+        options={{
+          title: 'My Transactions',
           headerLargeTitle: true,
         }}
       />

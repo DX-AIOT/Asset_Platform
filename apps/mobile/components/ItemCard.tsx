@@ -22,10 +22,14 @@ export function ItemCard({ item, onPress }: ItemCardProps) {
       </View>
 
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.name} numberOfLines={1}>
+          {item.name}
+        </Text>
 
         {item.brand && (
-          <Text style={styles.brand} numberOfLines={1}>{item.brand}</Text>
+          <Text style={styles.brand} numberOfLines={1}>
+            {item.brand}
+          </Text>
         )}
 
         <View style={styles.row}>

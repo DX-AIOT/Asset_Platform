@@ -26,7 +26,7 @@ describe('AutoCategoryDuplicateService', () => {
           model: 'XPS 13',
           categoryHint: 'laptop',
         },
-      ],
+      ]
     );
 
     expect(result.autoCategory.category).toBe('smartphone');
@@ -49,7 +49,7 @@ describe('AutoCategoryDuplicateService', () => {
           model: 'S24',
           categoryHint: 'smartphone',
         },
-      ],
+      ]
     );
 
     expect(result.autoCategory.category).toBe('other');

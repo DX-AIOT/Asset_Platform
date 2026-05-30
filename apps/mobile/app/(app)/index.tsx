@@ -7,24 +7,20 @@ export default function Home() {
   const router = useRouter();
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          router.replace('/(auth)/login');
         },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/(auth)/login');
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   return (
@@ -52,7 +48,9 @@ export default function Home() {
           >
             <Text style={styles.actionButtonIcon}>📷</Text>
             <View style={styles.actionButtonContent}>
-              <Text style={[styles.actionButtonTitle, styles.primaryActionButtonTitle]}>Scan New Asset</Text>
+              <Text style={[styles.actionButtonTitle, styles.primaryActionButtonTitle]}>
+                Scan New Asset
+              </Text>
               <Text style={styles.actionButtonSubtitle}>AI recognition in &lt;3s</Text>
             </View>
             <Text style={styles.actionButtonArrow}>›</Text>
@@ -72,12 +70,48 @@ export default function Home() {
 
           <TouchableOpacity
             style={styles.actionButton}
+            onPress={() => router.push('/(app)/sharing')}
+          >
+            <Text style={styles.actionButtonIcon}>👥</Text>
+            <View style={styles.actionButtonContent}>
+              <Text style={styles.actionButtonTitle}>Family Sharing</Text>
+              <Text style={styles.actionButtonSubtitle}>Invite and access shared inventories</Text>
+            </View>
+            <Text style={styles.actionButtonArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
             onPress={() => router.push('/(app)/add-item')}
           >
             <Text style={styles.actionButtonIcon}>➕</Text>
             <View style={styles.actionButtonContent}>
               <Text style={styles.actionButtonTitle}>Add Item Manually</Text>
               <Text style={styles.actionButtonSubtitle}>When AI doesn't recognize</Text>
+            </View>
+            <Text style={styles.actionButtonArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/(app)/marketplace')}
+          >
+            <Text style={styles.actionButtonIcon}>🛍️</Text>
+            <View style={styles.actionButtonContent}>
+              <Text style={styles.actionButtonTitle}>Marketplace</Text>
+              <Text style={styles.actionButtonSubtitle}>Buy and sell with AI pricing</Text>
+            </View>
+            <Text style={styles.actionButtonArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/(app)/transactions')}
+          >
+            <Text style={styles.actionButtonIcon}>🧾</Text>
+            <View style={styles.actionButtonContent}>
+              <Text style={styles.actionButtonTitle}>My Transactions</Text>
+              <Text style={styles.actionButtonSubtitle}>Track escrow &amp; disputes</Text>
             </View>
             <Text style={styles.actionButtonArrow}>›</Text>
           </TouchableOpacity>
@@ -195,6 +229,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
   },
   primaryActionButtonTitle: {
+    color: '#fff',
+  },
+  marketplaceActionButton: {
+    backgroundColor: '#F59E0B',
+  },
+  marketplaceActionButtonTitle: {
     color: '#fff',
   },
 });

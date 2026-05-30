@@ -29,6 +29,14 @@ export interface BarcodeLookupResponse {
   fallbackOnly: boolean;
 }
 
+export interface ConditionAssessmentResult {
+  condition: 'excellent' | 'good' | 'fair' | 'poor';
+  confidence: number;
+  notes: string;
+  fallbackSuggested: boolean;
+  latencyMs: number;
+}
+
 export const aiApi = {
   recognizeAsset: async (imageUri: string): Promise<AssetRecognitionResult> => {
     // Read image file and convert to base64
@@ -51,6 +59,22 @@ export const aiApi = {
   lookupBarcode: async (barcode: string): Promise<BarcodeLookupResponse> => {
     const response = await api.post<BarcodeLookupResponse>('/ai/barcode-lookup', {
       barcode,
+    });
+
+    return response.data;
+  },
+  assessCondition: async (
+    imageUri: string,
+    itemId?: string,
+  ): Promise<ConditionAssessmentResult> => {
+    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const response = await api.post<ConditionAssessmentResult>('/ai/condition-assessment', {
+      imageBase64: base64,
+      mimeType: 'image/jpeg',
+      itemId,
     });
 
     return response.data;

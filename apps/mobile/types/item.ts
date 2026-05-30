@@ -36,6 +36,30 @@ export interface Item {
   updatedAt: string;
 }
 
+export interface PriceHistoryPoint {
+  id: string;
+  estimatedValue: number;
+  currency: string;
+  source: string;
+  recordedAt: string;
+}
+
+export type TrendDirection = 'up' | 'flat' | 'down';
+
+export interface TrendWindow {
+  windowDays: number;
+  direction: TrendDirection;
+  percentChange: number;
+  fromValue: number | null;
+  toValue: number | null;
+}
+
+export interface PriceHistoryResponse {
+  points: PriceHistoryPoint[];
+  latestValue: number | null;
+  trends: TrendWindow[];
+}
+
 export interface CreateItemDto {
   name: string;
   brand?: string;
@@ -67,5 +91,61 @@ export const LOCATION_OPTIONS = [
   'Office',
   'Garage',
   'Storage',
+  'Other',
+];
+
+export type EscrowStatus = 'HELD' | 'RELEASED' | 'DISPUTED' | 'REFUNDED';
+
+export type DisputeReason =
+  | 'Item not received'
+  | 'Item differs from description'
+  | 'Damaged'
+  | 'Other';
+
+export interface Transaction {
+  id: string;
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+  amount: number;
+  currency: string;
+  escrowStatus: EscrowStatus;
+  escrowHeldAt: string;
+  escrowAutoReleaseAt: string;
+  disputeReason?: string;
+  disputeDescription?: string;
+  disputeFiledAt?: string;
+  releasedAt?: string;
+  refundedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  listingTitle?: string;
+  buyerName?: string;
+  sellerName?: string;
+}
+
+export interface FiledDispute {
+  reason: DisputeReason;
+  description: string;
+}
+
+export const ESCROW_STATUS_LABELS: Record<EscrowStatus, string> = {
+  HELD: 'Held in Escrow',
+  RELEASED: 'Released to Seller',
+  DISPUTED: 'Under Dispute',
+  REFUNDED: 'Refunded',
+};
+
+export const ESCROW_STATUS_COLORS: Record<EscrowStatus, string> = {
+  HELD: '#007AFF',
+  RELEASED: '#34C759',
+  DISPUTED: '#FF9500',
+  REFUNDED: '#8E8E93',
+};
+
+export const DISPUTE_REASONS: DisputeReason[] = [
+  'Item not received',
+  'Item differs from description',
+  'Damaged',
   'Other',
 ];

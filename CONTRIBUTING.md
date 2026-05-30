@@ -7,18 +7,21 @@
 Chúng ta sử dụng Git Flow với 3 loại branch:
 
 #### 1. `main` - Production Branch
+
 - **Purpose**: Code production-ready, deployed to production
 - **Protection**: Protected branch, requires PR approval
 - **Merge from**: `dev` branch only
 - **When to merge**: Sau khi QA pass và CTO approve
 
 #### 2. `dev` - Development Branch
+
 - **Purpose**: Integration branch cho tất cả features
 - **Protection**: Protected branch, requires PR approval
 - **Merge from**: `feature/*` branches
 - **When to merge**: Feature complete và pass initial testing
 
 #### 3. `feature/*` - Feature Branches
+
 - **Purpose**: Development của một feature cụ thể
 - **Naming**: `feature/DXS-{issue-number}-{short-description}`
 - **Created from**: `dev` branch
@@ -52,14 +55,29 @@ git branch -d feature/DXS-123-asset-upload
 
 ### Pull Request Guidelines
 
+#### Branch Safety Guard (DXS-55)
+- Install local pre-push hook once per clone:
+```bash
+cp scripts/branch-policy-guard.sh .git/hooks/pre-push
+chmod +x .git/hooks/pre-push
+```
+- The hook blocks direct pushes to `main` and instructs `dev` -> PR flow
+- Emergency override (CTO-approved only): `ALLOW_MAIN_PUSH=1 git push ...`
+- CI also validates PR routing: only `dev` can target `main`
+
+
 #### Khi tạo PR:
+
 - ✅ Title format: `[DXS-123] Short description`
 - ✅ Link đến issue trong description
 - ✅ Mô tả changes và testing đã làm
 - ✅ Screenshot (nếu có UI changes)
 - ✅ Checklist: Tests pass, Lint pass, TypeScript pass
+- ✅ Local-first gate pass: `npm run qa:local-first-gate`
+- ✅ Nếu thay đổi backend/runtime config: đính kèm kết quả `docker compose up` local smoke (log snippet hoặc screenshot)
 
 #### Review Process:
+
 1. Developer tạo PR vào `dev`
 2. CI/CD runs automated tests
 3. Assign reviewer (usually @qadevops or @cto)
@@ -68,6 +86,7 @@ git branch -d feature/DXS-123-asset-upload
 6. Merge vào `dev` (squash merge preferred)
 
 #### Release to Production:
+
 1. CTO tạo PR: `dev` → `main`
 2. QA performs full regression testing
 3. QA sign-off
@@ -88,6 +107,7 @@ Tuân theo [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 
 ### Types
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation only
@@ -122,18 +142,21 @@ Fixes DXS-456
 ## Code Style
 
 ### TypeScript
+
 - Use strict mode
 - No `any` types (use `unknown` if needed)
 - Prefer interfaces over types for objects
 - Use meaningful variable names
 
 ### React/React Native
+
 - Functional components with hooks
 - Use TypeScript for props
 - Keep components small and focused
 - Extract reusable logic to hooks
 
 ### NestJS
+
 - Follow NestJS best practices
 - Use DTOs for validation
 - Service layer for business logic
@@ -142,15 +165,18 @@ Fixes DXS-456
 ## Testing
 
 ### Before submitting PR:
+
 ```bash
 # Run all checks
 npm run lint
 npm run typecheck
 npm run test
 npm run build
+npm run qa:local-first-gate
 ```
 
 ### Test Requirements:
+
 - Unit tests for business logic
 - Integration tests for API endpoints
 - E2E tests for critical user flows (added by QA)
@@ -158,6 +184,7 @@ npm run build
 ## Questions?
 
 Gặp vấn đề? Hỏi trong team chat hoặc tag:
+
 - **@cto** - Architecture, technical decisions
 - **@qadevops** - CI/CD, deployment, testing strategy
 - **@backenddev** - API, database questions

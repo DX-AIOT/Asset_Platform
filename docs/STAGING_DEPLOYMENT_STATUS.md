@@ -13,13 +13,13 @@ All code for staging deployment is complete and committed to the `dev` branch. D
 
 ### Code Deliverables (Committed: `010b729`)
 
-| Component | Status | Location |
-|-----------|--------|----------|
-| **Item Entity** | ✅ Complete | `apps/api/src/items/entities/item.entity.ts` |
-| **ItemsModule** | ✅ Complete | `apps/api/src/items/items.module.ts` |
-| **Seed Script** | ✅ Complete | `apps/api/src/database/seed-demo.ts` |
-| **Health Endpoint** | ✅ Enhanced | `apps/api/src/app.service.ts` |
-| **Setup Guide** | ✅ Complete | `STAGING_SETUP.md` |
+| Component           | Status      | Location                                     |
+| ------------------- | ----------- | -------------------------------------------- |
+| **Item Entity**     | ✅ Complete | `apps/api/src/items/entities/item.entity.ts` |
+| **ItemsModule**     | ✅ Complete | `apps/api/src/items/items.module.ts`         |
+| **Seed Script**     | ✅ Complete | `apps/api/src/database/seed-demo.ts`         |
+| **Health Endpoint** | ✅ Enhanced | `apps/api/src/app.service.ts`                |
+| **Setup Guide**     | ✅ Complete | `STAGING_SETUP.md`                           |
 
 ### Item Entity Features
 
@@ -35,6 +35,7 @@ All code for staging deployment is complete and committed to the `dev` branch. D
 ### Demo Seed Data
 
 **Demo Account:**
+
 - Email: `demo@dx-aiot.com`
 - Password: `Demo@123`
 - Role: USER
@@ -68,6 +69,7 @@ All code for staging deployment is complete and committed to the `dev` branch. D
 **Endpoint:** `GET /health`
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -85,6 +87,7 @@ Ready for AWS EB health checks and monitoring.
 ### Primary Blocker: Git Authentication
 
 **Issue:** Cannot push to GitHub repository
+
 ```bash
 git remote add origin https://github.com/DX-AIoT/Asset_Platform.git
 git push origin dev
@@ -106,23 +109,27 @@ All secondary blockers are also tracked in [DXS-23](/DXS/issues/DXS-23).
 ## 📋 Next Steps (After Unblock)
 
 ### Step 1: Push to GitHub (DXS-23 owner)
+
 ```bash
 # Configure authentication (SSH key or token)
 git push origin dev
 ```
 
 ### Step 2: Monitor Deployment (~5-10 minutes)
+
 - GitHub Actions → Deploy Frontend workflow
 - GitHub Actions → Deploy Backend workflow
 - Check logs for any failures
 
 ### Step 3: Run Seed Script (QADevOps)
+
 ```bash
 # After backend deployment succeeds
 DATABASE_URL="postgresql://staging..." npm run seed:demo --workspace=@dx-aiot/api
 ```
 
 **Expected Output:**
+
 ```
 ✅ Database connected
 ✅ Demo user created: demo@dx-aiot.com
@@ -135,12 +142,14 @@ DATABASE_URL="postgresql://staging..." npm run seed:demo --workspace=@dx-aiot/ap
 ### Step 4: Health Check Verification (QADevOps)
 
 **Frontend:**
+
 ```bash
 curl https://staging.vercel.app/health
 # Expected: 200 OK
 ```
 
 **Backend:**
+
 ```bash
 curl https://staging-api.example.com/health
 # Expected: {"status":"ok","timestamp":"...","uptime":123,"environment":"staging"}
@@ -149,12 +158,14 @@ curl https://staging-api.example.com/health
 ### Step 5: Performance Testing (QADevOps)
 
 **Response Time Test:**
+
 ```bash
 time curl -w "\nTime: %{time_total}s\n" https://staging-api.example.com/health
 # Expected: < 500ms
 ```
 
 **Load Test:**
+
 ```bash
 ab -n 100 -c 10 https://staging-api.example.com/health
 # Expected: All requests < 500ms
@@ -163,6 +174,7 @@ ab -n 100 -c 10 https://staging-api.example.com/health
 ### Step 6: End-to-End Demo Verification (QADevOps)
 
 **Demo Flow:**
+
 1. ✅ Navigate to staging frontend
 2. ✅ Login with demo@dx-aiot.com / Demo@123
 3. ✅ Verify dashboard loads
@@ -171,6 +183,7 @@ ab -n 100 -c 10 https://staging-api.example.com/health
 6. ✅ Logout successfully
 
 **Acceptance Criteria:**
+
 - ✅ All endpoints respond < 500ms
 - ✅ Demo account works
 - ✅ 3 seed items visible
@@ -182,46 +195,50 @@ ab -n 100 -c 10 https://staging-api.example.com/health
 
 ### Complete Guides
 
-| Document | Purpose | Link |
-|----------|---------|------|
-| **STAGING_SETUP.md** | Complete setup guide | [View](/DXS/files/STAGING_SETUP.md) |
-| **DEPLOYMENT.md** | General deployment guide | [View](/DXS/files/DEPLOYMENT.md) |
-| **README.md** | Project overview | [View](/DXS/files/README.md) |
+| Document             | Purpose                  | Link                                |
+| -------------------- | ------------------------ | ----------------------------------- |
+| **STAGING_SETUP.md** | Complete setup guide     | [View](/DXS/files/STAGING_SETUP.md) |
+| **DEPLOYMENT.md**    | General deployment guide | [View](/DXS/files/DEPLOYMENT.md)    |
+| **README.md**        | Project overview         | [View](/DXS/files/README.md)        |
 
 ### Quick Commands
 
 **Run seed script:**
+
 ```bash
 npm run seed:demo --workspace=@dx-aiot/api
 ```
 
 **Check health:**
+
 ```bash
 curl https://staging-api.example.com/health
 ```
 
 **View deployment logs:**
+
 - GitHub Actions → Actions tab
 - Vercel → Dashboard → Deployments
 - AWS EB → Console → Logs
 
 ## 🎯 Acceptance Criteria Status
 
-| Criterion | Status | Notes |
-|-----------|--------|-------|
-| Staging deploy ready | ✅ Complete | Code committed, blocked by infra |
-| Frontend + backend + DB | ⏳ Blocked | Infrastructure setup needed |
-| 3 sample items | ✅ Ready | Seed script complete |
-| Demo account | ✅ Ready | demo@dx-aiot.com / Demo@123 |
-| HTTPS + domain | ⏳ Blocked | Vercel/AWS setup needed |
-| API response < 500ms | ⏳ Pending | Needs deployment first |
-| End-to-end demo | ⏳ Blocked | Needs deployment first |
+| Criterion               | Status      | Notes                            |
+| ----------------------- | ----------- | -------------------------------- |
+| Staging deploy ready    | ✅ Complete | Code committed, blocked by infra |
+| Frontend + backend + DB | ⏳ Blocked  | Infrastructure setup needed      |
+| 3 sample items          | ✅ Ready    | Seed script complete             |
+| Demo account            | ✅ Ready    | demo@dx-aiot.com / Demo@123      |
+| HTTPS + domain          | ⏳ Blocked  | Vercel/AWS setup needed          |
+| API response < 500ms    | ⏳ Pending  | Needs deployment first           |
+| End-to-end demo         | ⏳ Blocked  | Needs deployment first           |
 
 ## 📊 Timeline Estimate
 
 **Current State:** All code complete, infrastructure blocked
 
 **After DXS-23 resolution:**
+
 - Deploy to staging: 5-10 minutes (automated via GitHub Actions)
 - Run seed script: 1-2 minutes
 - Verification testing: 10-15 minutes
@@ -244,6 +261,7 @@ curl https://staging-api.example.com/health
 > "Staging deployment code is 100% complete and ready. We're blocked on infrastructure access (GitHub auth, Supabase, AWS). CTO is handling setup via DXS-23. Once unblocked, we can deploy and verify staging in ~30 minutes."
 
 **Questions? Contact:**
+
 - QADevOps: Code/deployment questions
 - CTO: Infrastructure/access questions
 

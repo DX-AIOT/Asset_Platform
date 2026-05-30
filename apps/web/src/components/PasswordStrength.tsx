@@ -43,11 +43,15 @@ export default function PasswordStrength({ password }: PasswordStrengthProps) {
     <div className="mt-2">
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-gray-600">Password strength:</span>
-        <span className={`text-xs font-medium ${
-          strength === 'weak' ? 'text-red-600' :
-          strength === 'medium' ? 'text-yellow-600' :
-          'text-green-600'
-        }`}>
+        <span
+          className={`text-xs font-medium ${
+            strength === 'weak'
+              ? 'text-red-600'
+              : strength === 'medium'
+                ? 'text-yellow-600'
+                : 'text-green-600'
+          }`}
+        >
           {labels[strength]}
         </span>
       </div>

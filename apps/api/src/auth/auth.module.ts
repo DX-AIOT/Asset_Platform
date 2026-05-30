@@ -8,6 +8,8 @@ import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { CsrfGuard } from './guards/csrf.guard';
+import { CsrfService } from './csrf.service';
 
 const optionalProviders = [];
 if (process.env.GOOGLE_CLIENT_ID) {
@@ -32,7 +34,7 @@ if (process.env.GOOGLE_CLIENT_ID) {
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, ...optionalProviders, JwtAuthGuard, RolesGuard],
-  exports: [AuthService, JwtAuthGuard, RolesGuard],
+  providers: [AuthService, JwtStrategy, GoogleStrategy, JwtAuthGuard, RolesGuard, CsrfGuard, CsrfService],
+  exports: [AuthService, JwtAuthGuard, RolesGuard, CsrfGuard, CsrfService],
 })
 export class AuthModule {}

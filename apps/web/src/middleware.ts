@@ -2,17 +2,17 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const publicPaths = ['/login', '/register'];
-const protectedPaths = ['/dashboard', '/settings'];
+const protectedPaths = ['/dashboard', '/settings', '/admin'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Get token from cookies (we'll set this from client)
-  const hasToken = request.cookies.has('auth_token');
+  // Check for httpOnly access_token cookie set by backend
+  const hasToken = request.cookies.has('access_token');
 
   // Check if path is protected
-  const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));
-  const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
+  const isProtectedPath = protectedPaths.some((path) => pathname.startsWith(path));
+  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
   // Redirect to login if accessing protected route without token
   if (isProtectedPath && !hasToken) {
@@ -30,5 +30,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/settings/:path*', '/login', '/register'],
+  matcher: ['/dashboard/:path*', '/settings/:path*', '/admin/:path*', '/login', '/register'],
 };

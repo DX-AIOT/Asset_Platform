@@ -7,15 +7,18 @@
  */
 
 import { createServer } from 'http';
-import { createHmac, randomUUID } from 'crypto';
+import { createHmac, randomUUID, randomBytes } from 'crypto';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const PORT = 3001;
 const JWT_SECRET = 'mock-jwt-secret';
 const REFRESH_SECRET = 'mock-refresh-secret';
 
 // In-memory store
-const users = new Map();   // email -> userRecord
-const refreshTokens = new Set();
+const users = new Map();          // email -> userRecord
+const refreshTokens = new Set();  // valid refresh token strings
+const userRefreshTokens = new Map(); // userId -> Set of refresh tokens (for logout invalidation)
 
 function base64url(str) {
   return Buffer.from(str).toString('base64url');
@@ -23,7 +26,9 @@ function base64url(str) {
 
 function makeJWT(payload, secret, expiresInSecs = 7 * 86400) {
   const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = base64url(JSON.stringify({ ...payload, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + expiresInSecs }));
+  // jti (JWT ID) ensures uniqueness even within the same second (prevents token rotation race condition)
+  const jti = randomBytes(8).toString('hex');
+  const body = base64url(JSON.stringify({ ...payload, jti, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + expiresInSecs }));
   const sig = createHmac('sha256', secret).update(`${header}.${body}`).digest('base64url');
   return `${header}.${body}.${sig}`;
 }
@@ -56,6 +61,9 @@ function issueTokens(user) {
   const accessToken = makeJWT({ sub: user.id, email: user.email, role: user.role }, JWT_SECRET, 900); // 15 min
   const refreshToken = makeJWT({ sub: user.id, type: 'refresh' }, REFRESH_SECRET, 30 * 86400);
   refreshTokens.add(refreshToken);
+  // Track per-user refresh tokens for logout invalidation
+  if (!userRefreshTokens.has(user.id)) userRefreshTokens.set(user.id, new Set());
+  userRefreshTokens.get(user.id).add(refreshToken);
   return {
     accessToken,
     refreshToken,
@@ -101,6 +109,7 @@ const server = createServer(async (req, res) => {
     const body = await readBody(req);
     const { email, password, firstName, lastName } = body;
     if (!email || !password) return sendJSON(res, 400, { message: 'Email and password required' });
+    if (!EMAIL_REGEX.test(email)) return sendJSON(res, 400, { message: 'email must be an email' });
     if (password.length < 6) return sendJSON(res, 400, { message: 'Password must be at least 6 characters' });
     if (users.has(email)) return sendJSON(res, 409, { message: 'Email already registered' });
 
@@ -156,10 +165,16 @@ const server = createServer(async (req, res) => {
   // POST /api/auth/logout
   if (url === '/api/auth/logout' && req.method === 'POST') {
     const token = getBearerToken(req);
-    if (token) {
-      const payload = verifyJWT(token, JWT_SECRET);
-      console.log(`[logout] User: ${payload?.email || 'unknown'}`);
+    if (!token) return sendJSON(res, 401, { message: 'No token provided' });
+    const payload = verifyJWT(token, JWT_SECRET);
+    if (!payload) return sendJSON(res, 401, { message: 'Invalid or expired token' });
+    // Invalidate all refresh tokens for this user
+    const userTokens = userRefreshTokens.get(payload.sub);
+    if (userTokens) {
+      userTokens.forEach(t => refreshTokens.delete(t));
+      userRefreshTokens.delete(payload.sub);
     }
+    console.log(`[logout] User: ${payload.email}`);
     return sendJSON(res, 200, { message: 'Logged out successfully' });
   }
 

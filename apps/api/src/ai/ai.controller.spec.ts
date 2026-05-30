@@ -2,6 +2,10 @@ import { BadRequestException } from '@nestjs/common';
 import { AiController } from './ai.controller';
 import { VisionRecognitionService } from './vision-recognition.service';
 import { BarcodeLookupService } from './barcode-lookup.service';
+import { MarketValuationService } from './market-valuation.service';
+import { ValuationCacheService } from './valuation-cache.service';
+import { ConditionAssessmentService } from './condition-assessment.service';
+import { ListingSuggestionService } from './listing-suggestion.service';
 
 describe('AiController', () => {
   const createController = () => {
@@ -17,9 +21,33 @@ describe('AiController', () => {
     } as unknown as VisionRecognitionService;
 
     const barcodeService = new BarcodeLookupService();
-    const controller = new AiController(mockVisionService, barcodeService);
+    // No REDIS_URL configured -> in-memory cache fallback.
+    const cacheService = new ValuationCacheService({
+      get: () => undefined,
+    } as never);
+    const valuationService = new MarketValuationService(cacheService);
+    const conditionService = {
+      assess: jest.fn().mockResolvedValue({
+        condition: 'good',
+        confidence: 0.8,
+        notes: 'Light wear.',
+        fallbackSuggested: false,
+        latencyMs: 50,
+      }),
+    } as unknown as ConditionAssessmentService;
+    const listingSuggestionService = {
+      suggestPrice: jest.fn(),
+      autofill: jest.fn(),
+    } as unknown as ListingSuggestionService;
+    const controller = new AiController(
+      mockVisionService,
+      barcodeService,
+      valuationService,
+      conditionService,
+      listingSuggestionService,
+    );
 
-    return { controller, mockVisionService };
+    return { controller, mockVisionService, conditionService };
   };
 
   it('forwards image payload to recognition service', async () => {
@@ -51,8 +79,35 @@ describe('AiController', () => {
   it('throws validation error for empty barcode', () => {
     const { controller } = createController();
 
-    expect(() => controller.lookupBarcode({ barcode: ' ' })).toThrow(
-      BadRequestException,
-    );
+    expect(() => controller.lookupBarcode({ barcode: ' ' })).toThrow(BadRequestException);
+  });
+
+  it('returns a valuation result for a supported asset', async () => {
+    const { controller } = createController();
+    const result = await controller.valuation({
+      name: 'iPhone 14 Pro',
+      category: 'mobile_phones',
+      condition: 'good',
+      purchaseYear: 2023,
+    });
+
+    expect(result.estimatedValue).toBeGreaterThan(0);
+    expect(result.currency).toBe('USD');
+    expect(['high', 'medium', 'low']).toContain(result.confidence);
+    expect(result.comparables.length).toBeGreaterThan(0);
+  });
+
+  it('forwards condition assessment requests to the service', async () => {
+    const { controller, conditionService } = createController();
+    const result = await controller.conditionAssessment({
+      itemId: 'item-1',
+      photoUrl: 'https://example.com/p.jpg',
+    });
+
+    expect(conditionService.assess).toHaveBeenCalledWith({
+      itemId: 'item-1',
+      photoUrl: 'https://example.com/p.jpg',
+    });
+    expect(result.condition).toBe('good');
   });
 });

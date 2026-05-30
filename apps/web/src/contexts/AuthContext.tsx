@@ -31,17 +31,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const initSession = async () => {
     try {
-      const tokens = authApi.getStoredTokens();
-      if (!tokens) {
-        setLoading(false);
-        return;
-      }
-
-      const profile = await authApi.getProfile(tokens.accessToken);
+      const profile = await authApi.getProfile();
       setUser(profile);
-    } catch (error) {
-      // Token might be expired, try refresh
-      await refreshSession();
+    } catch {
+      // No valid session — user is unauthenticated
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -49,20 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshSession = async () => {
     try {
-      const tokens = authApi.getStoredTokens();
-      if (!tokens?.refreshToken) {
-        authApi.clearTokens();
-        setUser(null);
-        return;
-      }
-
-      const response = await authApi.refreshToken(tokens.refreshToken);
-      authApi.storeTokens(response.accessToken, response.refreshToken);
+      const response = await authApi.refreshToken();
       setUser(response.user);
       setError(null);
-    } catch (error) {
-      authApi.clearTokens();
-      deleteCookie('auth_token');
+    } catch {
       setUser(null);
       setError('Session expired, please login again');
     }
@@ -72,47 +56,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
   };
 
-  const setCookie = (name: string, value: string, days: number = 7) => {
-    const expires = new Date(Date.now() + days * 864e5).toUTCString();
-    document.cookie = `${name}=${value}; expires=${expires}; path=/; SameSite=Lax`;
-  };
-
-  const deleteCookie = (name: string) => {
-    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-  };
-
   const login = async (credentials: LoginCredentials) => {
     const response = await authApi.login(credentials);
-    authApi.storeTokens(response.accessToken, response.refreshToken);
-    setCookie('auth_token', 'true');
     setUser(response.user);
     router.push('/dashboard');
   };
 
   const register = async (credentials: RegisterCredentials) => {
     const response = await authApi.register(credentials);
-    authApi.storeTokens(response.accessToken, response.refreshToken);
-    setCookie('auth_token', 'true');
     setUser(response.user);
     router.push('/dashboard');
   };
 
   const logout = async () => {
     try {
-      const tokens = authApi.getStoredTokens();
-      if (tokens?.accessToken) {
-        await authApi.logout(tokens.accessToken);
-      }
+      await authApi.logout();
     } finally {
-      authApi.clearTokens();
-      deleteCookie('auth_token');
       setUser(null);
       router.push('/login');
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, register, logout, refreshSession, clearError }}>
+    <AuthContext.Provider
+      value={{ user, loading, error, login, register, logout, refreshSession, clearError }}
+    >
       {children}
     </AuthContext.Provider>
   );

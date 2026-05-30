@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -10,6 +11,8 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { User } from '../users/entities/user.entity';
 
 export interface AuthTokens {
@@ -32,7 +35,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponse> {
@@ -80,6 +83,12 @@ export class AuthService {
     };
   }
 
+  /**
+   * Validates the refresh token (JWT signature + bcrypt comparison against the stored hash),
+   * then issues a new access/refresh token pair and rotates the stored hash.
+   * Rotation means each refresh token is single-use — a stolen token can only be replayed
+   * before the legitimate client uses it first.
+   */
   async refreshTokens(refreshToken: string): Promise<AuthTokens> {
     try {
       const payload = await this.jwtService.verifyAsync(refreshToken, {
@@ -107,6 +116,13 @@ export class AuthService {
     }
   }
 
+  /**
+   * Upsert flow for Google OAuth:
+   * 1. Look up by googleId (returning user) → generate tokens.
+   * 2. If not found by googleId but email matches → link googleId to existing account.
+   * 3. If no match at all → create a new account with a random unusable password
+   *    (the user authenticates via Google, never via password).
+   */
   async googleLogin(googleUser: any): Promise<AuthResponse> {
     if (!googleUser) {
       throw new BadRequestException('No user from Google');
@@ -143,6 +159,36 @@ export class AuthService {
 
   async logout(userId: string): Promise<void> {
     await this.usersService.updateRefreshToken(userId, null);
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string }> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isCurrentValid = await bcrypt.compare(dto.currentPassword, user.password);
+    if (!isCurrentValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const hashedPassword = await this.hashPassword(dto.newPassword);
+    await this.usersService.update(userId, { password: hashedPassword });
+
+    return { message: 'Password changed successfully' };
+  }
+
+  async adminResetPassword(dto: AdminResetPasswordDto): Promise<{ message: string }> {
+    const user = await this.usersService.findById(dto.userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const hashedPassword = await this.hashPassword(dto.newPassword);
+    await this.usersService.update(dto.userId, { password: hashedPassword });
+    await this.usersService.updateRefreshToken(dto.userId, null);
+
+    return { message: 'Password reset successfully' };
   }
 
   private async validateUser(email: string, password: string): Promise<User | null> {

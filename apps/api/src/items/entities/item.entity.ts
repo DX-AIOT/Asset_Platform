@@ -35,10 +35,10 @@ export class Item {
   @Column()
   name!: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   brand!: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   model!: string;
 
   @Column({
@@ -48,7 +48,7 @@ export class Item {
   })
   category!: ItemCategory;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   serial!: string;
 
   @Column({ type: 'date', nullable: true })
@@ -64,7 +64,7 @@ export class Item {
   })
   condition!: ItemCondition;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   location!: string;
 
   @Column({ type: 'jsonb', nullable: true })
@@ -75,6 +75,9 @@ export class Item {
 
   @Column({ type: 'text', nullable: true })
   notes!: string;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  depreciationRatePercent!: number;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   depreciatedValue!: number;

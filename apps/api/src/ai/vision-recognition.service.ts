@@ -19,10 +19,14 @@ type OpenAIPrediction = {
 @Injectable()
 export class VisionRecognitionService {
   private readonly openai: OpenAI | null;
+  private readonly useLocalMock: boolean;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    this.openai = apiKey ? new OpenAI({ apiKey }) : null;
+    const baseURL = this.configService.get<string>('OPENAI_BASE_URL');
+    const localMode = this.getBooleanConfig('OPENAI_LOCAL_MODE', !apiKey);
+    this.useLocalMock = localMode || !apiKey;
+    this.openai = this.useLocalMock ? null : new OpenAI({ apiKey, baseURL });
   }
 
   async recognizeFromBase64(imageBase64: string): Promise<AssetRecognitionResult> {
@@ -30,8 +34,11 @@ export class VisionRecognitionService {
       throw new Error('OPENAI_API_KEY not configured — AI features disabled in local dev');
     }
     const startedAt = Date.now();
+    if (this.useLocalMock) {
+      return this.mockRecognitionResult(startedAt);
+    }
 
-    const response = await this.openai.responses.create({
+    const response = await this.openai!.responses.create({
       model: 'gpt-4o-mini',
       input: [
         {
@@ -94,7 +101,10 @@ export class VisionRecognitionService {
     const parsed = JSON.parse(raw) as OpenAIPrediction;
 
     const fallbackSuggested =
-      !parsed.name || !parsed.model || parsed.confidence.name < 0.7 || parsed.confidence.model < 0.65;
+      !parsed.name ||
+      !parsed.model ||
+      parsed.confidence.name < 0.7 ||
+      parsed.confidence.model < 0.65;
 
     return {
       name: { value: parsed.name, confidence: parsed.confidence.name },
@@ -104,5 +114,25 @@ export class VisionRecognitionService {
       fallbackSuggested,
       latencyMs: Date.now() - startedAt,
     };
+  }
+
+  private mockRecognitionResult(startedAt: number): AssetRecognitionResult {
+    return {
+      name: { value: null, confidence: 0 },
+      brand: { value: null, confidence: 0 },
+      model: { value: null, confidence: 0 },
+      category: { value: 'other', confidence: 0.4 },
+      fallbackSuggested: true,
+      latencyMs: Date.now() - startedAt,
+    };
+  }
+
+  private getBooleanConfig(key: string, fallback: boolean): boolean {
+    const raw = this.configService.get<string>(key);
+    if (raw == null || raw.trim() === '') {
+      return fallback;
+    }
+
+    return ['true', '1', 'yes', 'on'].includes(raw.trim().toLowerCase());
   }
 }

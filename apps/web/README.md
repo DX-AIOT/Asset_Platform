@@ -16,3 +16,9 @@ App sẽ chạy tại http://localhost:3000
 - TypeScript
 - Tailwind CSS
 - React Query (TBD)
+
+## Documentation
+
+- [Web Frontend Component Docs](../../docs/WEB_FRONTEND_COMPONENTS.md)
+- [Web Frontend User Guide](../../docs/WEB_FRONTEND_USER_GUIDE.md)
+- [Web User Guide (Task Output Path)](../../docs/web-user-guide.md)

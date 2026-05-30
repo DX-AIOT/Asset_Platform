@@ -27,7 +27,7 @@ services:
     image: redis:7-alpine
     container_name: asset_platform_redis
     ports:
-      - '6379:6379'
+      - '6380:6379'
     volumes:
       - redis_data:/data
     healthcheck:
@@ -49,17 +49,22 @@ services:
       NODE_ENV: development
       API_PORT: 3001
       API_HOST: 0.0.0.0
-      DATABASE_URL: postgresql://asset_user:asset_pass_dev@postgres:5432/asset_platform  # internal docker network, not host port
+      DATABASE_URL: postgresql://asset_user:asset_pass_dev@postgres:5432/asset_platform # internal docker network, not host port
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-jwt-secret-change-in-production
       JWT_EXPIRES_IN: 7d
       REFRESH_TOKEN_SECRET: dev-refresh-secret-change-in-production
       REFRESH_TOKEN_EXPIRES_IN: 30d
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_LOCAL_MODE: ${OPENAI_LOCAL_MODE:-true}
+      OPENAI_OCR_MODEL: ${OPENAI_OCR_MODEL:-gpt-4.1-mini}
+      MOMO_PARTNER_CODE: ${MOMO_PARTNER_CODE:-MOMOBKUN20180529}
+      MOMO_ACCESS_KEY: ${MOMO_ACCESS_KEY:-klm05TvNBzhg7h7j}
+      MOMO_SECRET_KEY: ${MOMO_SECRET_KEY:-at67qH6mk8w5Y1nAyMoTwMDMKWqE3sa7}
+      MOMO_ENDPOINT: ${MOMO_ENDPOINT:-https://test-payment.momo.vn/v2/gateway/api/create}
     ports:
-      - '3001:3001'
-    volumes:
-      - ./apps/api/src:/app/apps/api/src
-      - ./packages:/app/packages
+      - '3002:3001'
     depends_on:
       postgres:
         condition: service_healthy
