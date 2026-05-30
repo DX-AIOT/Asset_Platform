@@ -42,7 +42,7 @@ import {
   Transaction,
   TransactionStatus,
 } from '../src/transactions/entities/transaction.entity';
-import { DisputeRecord } from '../src/transactions/entities/dispute-record.entity';
+import { DisputeRecord, DisputeStatus } from '../src/transactions/entities/dispute-record.entity';
 import { TransactionsService } from '../src/transactions/transactions.service';
 import { EscrowReleaseService } from '../src/transactions/escrow-release.service';
 import {
@@ -169,6 +169,37 @@ function makeConfig(overrides: Record<string, string | number> = {}): ConfigServ
     get: (key: string, defaultValue?: unknown) =>
       key in defaults ? defaults[key] : defaultValue,
   } as unknown as ConfigService;
+}
+
+// ── Failing release gateway (simulates persistent MoMo release errors) ────
+
+class FailingReleaseGateway implements IPaymentGateway {
+  async initiateEscrowHold(
+    params: InitiateEscrowHoldParams,
+  ): Promise<InitiateEscrowHoldResult> {
+    return {
+      paymentUrl: 'https://test-payment.momo.vn/pay?token=FAIL_TOKEN',
+      orderId: params.orderId,
+      requestId: params.requestId,
+    };
+  }
+
+  async releaseEscrow(_params: ReleaseEscrowParams): Promise<ReleaseEscrowResult> {
+    throw new Error('MoMo release endpoint unavailable (simulated)');
+  }
+
+  async refundBuyer(params: RefundBuyerParams): Promise<RefundBuyerResult> {
+    return {
+      orderId: params.orderId,
+      requestId: params.requestId,
+      resultCode: 0,
+      message: 'ok',
+    };
+  }
+
+  verifyIpnSignature(_payload: IpnPayload): boolean {
+    return true;
+  }
 }
 
 // ── Global state ───────────────────────────────────────────────────────────
@@ -773,5 +804,204 @@ describe('Edge cases', () => {
     await expect(
       svc.raiseDispute(transactionId, buyer.id, 'Second dispute'),
     ).rejects.toThrow(UnprocessableEntityException);
+  });
+});
+
+// ── 11. IPN amount mismatch ───────────────────────────────────────────────
+
+describe('IPN amount mismatch: valid IPN but amount ≠ expected → PAYMENT_FAILED', () => {
+  it('PENDING_PAYMENT → PAYMENT_FAILED when IPN amount differs, listing re-activated', async () => {
+    const seller = await seedUser();
+    const buyer = await seedUser();
+    const item = await seedItem(seller.id);
+    const listing = await seedActiveListing(seller.id, item.id, 500_000);
+
+    const { transactionId, momoOrderId } = await svc.initiate(listing.id, buyer.id);
+    const requestId = `REQ-${momoOrderId.slice(4)}`;
+
+    // Build a properly-signed IPN but with half the expected amount
+    const mismatchBase = {
+      orderId: momoOrderId,
+      requestId,
+      amount: 250_000,
+      transId: 222222222,
+      resultCode: 0,
+      message: 'Successful.',
+      orderInfo: 'Purchase listing test',
+      orderType: 'momo_wallet',
+      payType: 'qr',
+      responseTime: 1716998400000,
+      extraData: '',
+      partnerCode: TEST_PARTNER_CODE,
+    };
+    const ipnMismatch: IpnPayload = { ...mismatchBase, signature: signIpn(mismatchBase) };
+
+    await svc.handleIpn(ipnMismatch);
+
+    const tx = await txRepo.findOneOrFail({ where: { id: transactionId } });
+    expect(tx.status).toBe(TransactionStatus.PAYMENT_FAILED);
+    expect(tx.escrowHeldAt).toBeNull();
+    expect(tx.releaseAfter).toBeNull();
+
+    // Listing should be re-activated so it can be re-purchased
+    const updListing = await listingRepo.findOneOrFail({ where: { id: listing.id } });
+    expect(updListing.status).toBe(ListingStatus.ACTIVE);
+
+    console.log(
+      `[PASS] IPN amount mismatch: txId=${transactionId} → PAYMENT_FAILED, listing re-activated`,
+    );
+  });
+});
+
+// ── 12. Admin dispute resolution ──────────────────────────────────────────
+
+describe('Admin dispute resolution: DISPUTED → BUYER_REFUNDED or RELEASED_TO_SELLER', () => {
+  async function buildDisputedTx(): Promise<{
+    transactionId: string;
+    buyer: User;
+    seller: User;
+    listingId: string;
+  }> {
+    const seller = await seedUser();
+    const buyer = await seedUser();
+    const item = await seedItem(seller.id);
+    const listing = await seedActiveListing(seller.id, item.id);
+
+    const result = await svc.initiate(listing.id, buyer.id);
+    const ipn = buildIpn(result.momoOrderId, `REQ-${result.momoOrderId.slice(4)}`);
+    await svc.handleIpn(ipn);
+    await svc.raiseDispute(result.transactionId, buyer.id, 'Item not as described');
+
+    return {
+      transactionId: result.transactionId,
+      buyer,
+      seller,
+      listingId: listing.id,
+    };
+  }
+
+  it('resolveDispute(BUYER_REFUNDED) → BUYER_REFUNDED, dispute closed as RESOLVED_BUYER', async () => {
+    const { transactionId } = await buildDisputedTx();
+
+    const tx = await svc.resolveDispute(transactionId, 'BUYER_REFUNDED');
+
+    expect(tx.status).toBe(TransactionStatus.BUYER_REFUNDED);
+    expect(tx.releasedAt).toBeInstanceOf(Date);
+
+    const dispute = await disputeRepo.findOneOrFail({ where: { transactionId } });
+    expect(dispute.status).toBe(DisputeStatus.RESOLVED_BUYER);
+    expect(dispute.resolvedAt).toBeInstanceOf(Date);
+
+    console.log(
+      `[PASS] Admin BUYER_REFUNDED: txId=${transactionId} dispute=${dispute.id}`,
+    );
+  });
+
+  it('resolveDispute(SELLER_RELEASED) → RELEASED_TO_SELLER, dispute closed as RESOLVED_SELLER, listing SOLD', async () => {
+    const { transactionId, listingId } = await buildDisputedTx();
+
+    const tx = await svc.resolveDispute(transactionId, 'SELLER_RELEASED');
+
+    expect(tx.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
+    expect(tx.releasedAt).toBeInstanceOf(Date);
+
+    const dispute = await disputeRepo.findOneOrFail({ where: { transactionId } });
+    expect(dispute.status).toBe(DisputeStatus.RESOLVED_SELLER);
+    expect(dispute.resolvedAt).toBeInstanceOf(Date);
+
+    const updListing = await listingRepo.findOneOrFail({ where: { id: listingId } });
+    expect(updListing.status).toBe(ListingStatus.SOLD);
+
+    console.log(
+      `[PASS] Admin SELLER_RELEASED: txId=${transactionId} listing=${listingId} SOLD`,
+    );
+  });
+});
+
+// ── 13. RELEASE_FAILED retry ──────────────────────────────────────────────
+
+describe('RELEASE_FAILED: 4 gateway failures → RELEASE_FAILED + adminRetryRelease succeeds', () => {
+  let failGateway: FailingReleaseGateway;
+  let failSvc: TransactionsService;
+  let failCron: EscrowReleaseService;
+  let failTxId: string;
+  let failBuyer: User;
+
+  beforeAll(async () => {
+    failGateway = new FailingReleaseGateway();
+    failSvc = new TransactionsService(
+      txRepo,
+      disputeRepo,
+      listingRepo,
+      failGateway,
+      makeConfig(),
+    );
+    failCron = new EscrowReleaseService(failSvc);
+  });
+
+  it('gateway release fails on all 4 attempts → RELEASE_FAILED', async () => {
+    const seller = await seedUser();
+    failBuyer = await seedUser();
+    const item = await seedItem(seller.id);
+    const listing = await seedActiveListing(seller.id, item.id);
+
+    // Get to ESCROW_HELD
+    const result = await failSvc.initiate(listing.id, failBuyer.id);
+    const ipn = buildIpn(result.momoOrderId, `REQ-${result.momoOrderId.slice(4)}`);
+    await failSvc.handleIpn(ipn);
+    failTxId = result.transactionId;
+
+    let tx = await txRepo.findOneOrFail({ where: { id: failTxId } });
+    expect(tx.status).toBe(TransactionStatus.ESCROW_HELD);
+
+    // Attempt 1: via confirmReceipt (releaseEscrow throws internally, no exception propagated)
+    await failSvc.confirmReceipt(failTxId, failBuyer.id);
+    tx = await txRepo.findOneOrFail({ where: { id: failTxId } });
+    expect(tx.status).toBe(TransactionStatus.ESCROW_HELD);
+    expect(tx.releaseAttempts).toBe(1);
+
+    // Attempts 2–4: via scheduled retry cron (fast-forward nextReleaseAttemptAt each time)
+    for (let attempt = 2; attempt <= 4; attempt++) {
+      await txRepo.update(failTxId, { nextReleaseAttemptAt: new Date(Date.now() - 1_000) });
+      await failCron.processReleaseRetries();
+      tx = await txRepo.findOneOrFail({ where: { id: failTxId } });
+      if (attempt < 4) {
+        expect(tx.status).toBe(TransactionStatus.ESCROW_HELD);
+        expect(tx.releaseAttempts).toBe(attempt);
+      }
+    }
+
+    // After the 4th failure (releaseAttempts=4 > RELEASE_RETRY_DELAYS_MS.length=3)
+    expect(tx.status).toBe(TransactionStatus.RELEASE_FAILED);
+    expect(tx.releaseAttempts).toBe(4);
+    expect(tx.nextReleaseAttemptAt).toBeNull();
+
+    console.log(
+      `[PASS] RELEASE_FAILED: txId=${failTxId} releaseAttempts=${tx.releaseAttempts}`,
+    );
+  });
+
+  it('adminRetryRelease on RELEASE_FAILED resets to ESCROW_HELD then releases → RELEASED_TO_SELLER', async () => {
+    // Use a service backed by the working mock gateway for admin retry
+    const svcWorking = new TransactionsService(
+      txRepo,
+      disputeRepo,
+      listingRepo,
+      mockGateway,
+      makeConfig(),
+    );
+
+    const tx = await svcWorking.adminRetryRelease(failTxId);
+
+    expect(tx.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
+    expect(tx.releasedAt).toBeInstanceOf(Date);
+
+    // releaseAttempts is reset to 0 before the successful gateway call
+    const persisted = await txRepo.findOneOrFail({ where: { id: failTxId } });
+    expect(persisted.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
+
+    console.log(
+      `[PASS] adminRetryRelease: txId=${failTxId} → RELEASED_TO_SELLER releasedAt=${tx.releasedAt!.toISOString()}`,
+    );
   });
 });
