@@ -8,6 +8,7 @@ import { FirebaseService } from './firebase.service';
 import { ExpoNotificationsService } from './expo-notifications.service';
 import { Notification } from './entities/notification.entity';
 import { decryptToken } from '../common/crypto.util';
+import { UsersService } from '../users/users.service';
 
 const DAYS_AHEAD = 3;
 
@@ -22,6 +23,7 @@ export class MaintenanceJobService {
     @InjectRepository(Notification)
     private readonly notificationsRepo: Repository<Notification>,
     private readonly config: ConfigService,
+    private readonly usersService: UsersService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_8AM)
@@ -64,7 +66,11 @@ export class MaintenanceJobService {
       if (user.pushToken && encryptionKey?.length === 64) {
         try {
           const plainToken = decryptToken(user.pushToken, encryptionKey);
-          await this.expoNotifications.sendToDevice(plainToken, { title, body, data: pushData });
+          const { deadTokens } = await this.expoNotifications.sendToDevice(plainToken, { title, body, data: pushData });
+          if (deadTokens.length > 0) {
+            await this.usersService.update(user.id, { pushToken: null });
+            this.logger.warn(`Cleared dead Expo push token for user ${user.id}`);
+          }
         } catch (err) {
           this.logger.error(`Failed to decrypt/send Expo push for user ${user.id}`, err);
         }

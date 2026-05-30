@@ -19,12 +19,18 @@ export class ExpoNotificationsService {
     });
   }
 
-  async sendToDevice(token: string, payload: PushPayload): Promise<void> {
+  /**
+   * Sends a push notification to the given Expo token.
+   * Returns `deadTokens` containing `token` when Expo reports DeviceNotRegistered,
+   * so callers can remove the stale token from the database.
+   */
+  async sendToDevice(token: string, payload: PushPayload): Promise<{ deadTokens: string[] }> {
     if (!Expo.isExpoPushToken(token)) {
       this.logger.warn(`Skipping invalid Expo push token: ${token.slice(0, 14)}…`);
-      return;
+      return { deadTokens: [] };
     }
 
+    const deadTokens: string[] = [];
     const message: ExpoPushMessage = {
       to: token,
       sound: 'default',
@@ -42,11 +48,16 @@ export class ExpoNotificationsService {
             this.logger.error(
               `Expo push error (${ticket.details?.error ?? 'unknown'}): ${ticket.message}`,
             );
+            if (ticket.details?.error === 'DeviceNotRegistered') {
+              deadTokens.push(token);
+            }
           }
         }
       }
     } catch (err) {
       this.logger.error(`Expo push send failed for token ${token.slice(0, 14)}…`, err);
     }
+
+    return { deadTokens };
   }
 }
