@@ -45,14 +45,16 @@ async function fetchWithAuth<T>(endpoint: string, options?: RequestInit): Promis
   });
 
   if (response.status === 401) {
-    // Try refresh — cookies handle the token exchange
+    // Try refresh — cookies handle the token exchange.
+    // Headers must be rebuilt after refresh because refreshToken() rotates the
+    // csrf-token cookie; reusing pre-refresh headers causes a CsrfGuard 403.
     try {
       await refreshToken();
 
       const retried = await fetch(`${API_URL}${endpoint}`, {
         ...options,
         credentials: 'include',
-        headers,
+        headers: buildHeaders(method, options?.headers),
       });
       if (!retried.ok) throw new AuthError('Request failed after refresh', retried.status);
       return retried.json();
