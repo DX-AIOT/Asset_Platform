@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Listing } from './listing.entity';
-import type { ChatMessage } from './chat-message.entity';
+import { ChatMessage } from './chat-message.entity';
 
 
 @Entity('marketplace_chat_threads')
@@ -41,9 +41,7 @@ export class ChatThread {
   @Column()
   sellerId!: string;
 
-  // Lazy require breaks circular dep: chat-message ↔ chat-thread
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  @OneToMany(() => require('./chat-message.entity').ChatMessage, (msg: ChatMessage) => msg.thread)
+  @OneToMany(() => ChatMessage, (msg) => msg.thread)
   messages!: ChatMessage[];
 
   @CreateDateColumn()
