@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { TransactionsService } from './transactions.service';
 
 @Injectable()
@@ -8,9 +8,16 @@ export class EscrowReleaseService {
 
   constructor(private readonly transactionsService: TransactionsService) {}
 
-  @Cron(CronExpression.EVERY_HOUR)
+  // Every 15 minutes: auto-release expired escrows with no open dispute
+  @Cron('0/15 * * * *')
   async releaseExpiredEscrows() {
     this.logger.log('Running escrow auto-release check');
     await this.transactionsService.releaseExpiredEscrows();
+  }
+
+  // Every minute: process scheduled retries for previously-failed releases
+  @Cron('* * * * *')
+  async processReleaseRetries() {
+    await this.transactionsService.processScheduledReleaseRetries();
   }
 }

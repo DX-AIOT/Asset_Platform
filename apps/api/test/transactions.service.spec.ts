@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  InternalServerErrorException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -10,6 +11,7 @@ import {
   TransactionStatus,
 } from '../src/transactions/entities/transaction.entity';
 import { Listing, ListingStatus } from '../src/marketplace/entities/listing.entity';
+import { DisputeRecord, DisputeStatus } from '../src/transactions/entities/dispute-record.entity';
 import { IPaymentGateway, IpnPayload } from '../src/payments/interfaces/payment-gateway.interface';
 
 // ── Factories ────────────────────────────────────────────────────────────────
@@ -41,6 +43,8 @@ function makeTx(overrides: Partial<Transaction> = {}): Transaction {
     escrowHeldAt: null,
     releasedAt: null,
     releaseAfter: null,
+    releaseAttempts: 0,
+    nextReleaseAttemptAt: null,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
     ...overrides,
@@ -97,6 +101,7 @@ function makeService(opts: {
 
   const disputeRepo: any = {
     findOne: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
     create: jest.fn().mockImplementation((data) => ({ id: 'dispute-1', ...data })),
     save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
   };
@@ -364,15 +369,62 @@ describe('TransactionsService.handleIpn', () => {
 // ── confirmReceipt ────────────────────────────────────────────────────────────
 
 describe('TransactionsService.confirmReceipt', () => {
-  it('transitions ESCROW_HELD → RELEASED_TO_SELLER for the buyer', async () => {
+  it('calls gateway.releaseEscrow and transitions ESCROW_HELD → RELEASED_TO_SELLER', async () => {
     const tx = makeTx({ status: TransactionStatus.ESCROW_HELD });
-    const { service, txRepo } = makeService({ txs: [tx] });
+    const listing = makeListing({ status: ListingStatus.INACTIVE });
+    const { service, txRepo, gateway } = makeService({ txs: [tx], listings: [listing] });
 
     const result = await service.confirmReceipt('tx-1', 'buyer-1');
 
+    expect(gateway.releaseEscrow).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: tx.momoOrderId, amount: tx.amountVND }),
+    );
     expect(result.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
     expect(result.releasedAt).toBeInstanceOf(Date);
     expect(txRepo.save).toHaveBeenCalled();
+  });
+
+  it('marks listing as SOLD on successful gateway release', async () => {
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD });
+    const listing = makeListing({ status: ListingStatus.INACTIVE });
+    const { service, listingRepo } = makeService({ txs: [tx], listings: [listing] });
+
+    await service.confirmReceipt('tx-1', 'buyer-1');
+
+    const savedListing = listingRepo.save.mock.calls[0]?.[0];
+    expect(savedListing?.status).toBe(ListingStatus.SOLD);
+  });
+
+  it('schedules retry when gateway throws — status stays ESCROW_HELD, releaseAttempts=1', async () => {
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD });
+    const { service, txRepo } = makeService({
+      txs: [tx],
+      gatewayOverrides: {
+        releaseEscrow: jest.fn().mockRejectedValue(new Error('MoMo timeout')),
+      },
+    });
+
+    const result = await service.confirmReceipt('tx-1', 'buyer-1');
+
+    expect(result.status).toBe(TransactionStatus.ESCROW_HELD);
+    expect(result.releaseAttempts).toBe(1);
+    expect(result.nextReleaseAttemptAt).toBeInstanceOf(Date);
+    expect(txRepo.save).toHaveBeenCalled();
+  });
+
+  it('transitions to RELEASE_FAILED when all retry slots are exhausted', async () => {
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD, releaseAttempts: 3 });
+    const { service } = makeService({
+      txs: [tx],
+      gatewayOverrides: {
+        releaseEscrow: jest.fn().mockRejectedValue(new Error('permanent failure')),
+      },
+    });
+
+    const result = await service.confirmReceipt('tx-1', 'buyer-1');
+
+    expect(result.status).toBe(TransactionStatus.RELEASE_FAILED);
+    expect(result.nextReleaseAttemptAt).toBeNull();
   });
 
   it('throws ForbiddenException when non-buyer tries to confirm', async () => {
@@ -394,17 +446,6 @@ describe('TransactionsService.confirmReceipt', () => {
     await expect(service.confirmReceipt('tx-1', 'buyer-1')).rejects.toThrow(
       UnprocessableEntityException,
     );
-  });
-
-  it('marks listing as SOLD on successful confirmReceipt', async () => {
-    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD });
-    const listing = makeListing({ status: ListingStatus.INACTIVE });
-    const { service, listingRepo } = makeService({ txs: [tx], listings: [listing] });
-
-    await service.confirmReceipt('tx-1', 'buyer-1');
-
-    const savedListing = listingRepo.save.mock.calls[0]?.[0];
-    expect(savedListing?.status).toBe(ListingStatus.SOLD);
   });
 });
 
@@ -464,17 +505,35 @@ describe('TransactionsService.raiseDispute', () => {
 // ── releaseExpiredEscrows ─────────────────────────────────────────────────────
 
 describe('TransactionsService.releaseExpiredEscrows', () => {
-  it('transitions ESCROW_HELD → RELEASED_TO_SELLER for expired transactions', async () => {
+  it('calls gateway.releaseEscrow and transitions ESCROW_HELD → RELEASED_TO_SELLER', async () => {
     const past = new Date(Date.now() - 1000);
     const tx = makeTx({ status: TransactionStatus.ESCROW_HELD, releaseAfter: past });
-    const { service, txRepo } = makeService({ txs: [tx] });
+    const { service, txRepo, gateway } = makeService({ txs: [tx] });
     txRepo.find.mockResolvedValue([tx]);
 
     await service.releaseExpiredEscrows();
 
+    expect(gateway.releaseEscrow).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: tx.momoOrderId }),
+    );
     expect(tx.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
     expect(tx.releasedAt).toBeInstanceOf(Date);
     expect(txRepo.save).toHaveBeenCalledWith(tx);
+  });
+
+  it('skips transactions that have an open dispute', async () => {
+    const past = new Date(Date.now() - 1000);
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD, releaseAfter: past });
+    const { service, txRepo, disputeRepo, gateway } = makeService({ txs: [tx] });
+    txRepo.find.mockResolvedValue([tx]);
+    disputeRepo.find.mockResolvedValue([
+      { id: 'dispute-1', transactionId: 'tx-1', status: DisputeStatus.OPEN },
+    ]);
+
+    await service.releaseExpiredEscrows();
+
+    expect(gateway.releaseEscrow).not.toHaveBeenCalled();
+    expect(txRepo.save).not.toHaveBeenCalled();
   });
 
   it('does NOT touch DISPUTED transactions (query filters by ESCROW_HELD)', async () => {
@@ -499,13 +558,322 @@ describe('TransactionsService.releaseExpiredEscrows', () => {
     const past = new Date(Date.now() - 1000);
     const tx1 = makeTx({ id: 'tx-1', status: TransactionStatus.ESCROW_HELD, releaseAfter: past });
     const tx2 = makeTx({ id: 'tx-2', status: TransactionStatus.ESCROW_HELD, releaseAfter: past });
-    const { service, txRepo } = makeService({ txs: [tx1, tx2] });
+    const { service, txRepo, gateway } = makeService({ txs: [tx1, tx2] });
     txRepo.find.mockResolvedValue([tx1, tx2]);
 
     await service.releaseExpiredEscrows();
 
+    expect(gateway.releaseEscrow).toHaveBeenCalledTimes(2);
     expect(txRepo.save).toHaveBeenCalledTimes(2);
     expect(tx1.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
     expect(tx2.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
+  });
+
+  it('schedules retry when gateway fails — does not immediately become RELEASE_FAILED', async () => {
+    const past = new Date(Date.now() - 1000);
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD, releaseAfter: past });
+    const { service, txRepo } = makeService({
+      txs: [tx],
+      gatewayOverrides: {
+        releaseEscrow: jest.fn().mockRejectedValue(new Error('network error')),
+      },
+    });
+    txRepo.find.mockResolvedValue([tx]);
+
+    await service.releaseExpiredEscrows();
+
+    expect(tx.status).toBe(TransactionStatus.ESCROW_HELD);
+    expect(tx.releaseAttempts).toBe(1);
+    expect(tx.nextReleaseAttemptAt).toBeInstanceOf(Date);
+  });
+});
+
+// ── processScheduledReleaseRetries ────────────────────────────────────────────
+
+describe('TransactionsService.processScheduledReleaseRetries', () => {
+  it('retries and transitions to RELEASED_TO_SELLER on success', async () => {
+    const soon = new Date(Date.now() - 100);
+    const tx = makeTx({
+      status: TransactionStatus.ESCROW_HELD,
+      releaseAttempts: 1,
+      nextReleaseAttemptAt: soon,
+    });
+    const { service, txRepo, gateway } = makeService({ txs: [tx] });
+    txRepo.find.mockResolvedValue([tx]);
+
+    await service.processScheduledReleaseRetries();
+
+    expect(gateway.releaseEscrow).toHaveBeenCalled();
+    expect(tx.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
+    expect(tx.nextReleaseAttemptAt).toBeNull();
+  });
+
+  it('increments releaseAttempts and schedules next retry when gateway fails again', async () => {
+    const soon = new Date(Date.now() - 100);
+    const tx = makeTx({
+      status: TransactionStatus.ESCROW_HELD,
+      releaseAttempts: 1,
+      nextReleaseAttemptAt: soon,
+    });
+    const { service, txRepo } = makeService({
+      txs: [tx],
+      gatewayOverrides: {
+        releaseEscrow: jest.fn().mockRejectedValue(new Error('still failing')),
+      },
+    });
+    txRepo.find.mockResolvedValue([tx]);
+
+    await service.processScheduledReleaseRetries();
+
+    expect(tx.status).toBe(TransactionStatus.ESCROW_HELD);
+    expect(tx.releaseAttempts).toBe(2);
+    expect(tx.nextReleaseAttemptAt).toBeInstanceOf(Date);
+  });
+
+  it('transitions to RELEASE_FAILED when retry count exceeds max', async () => {
+    const soon = new Date(Date.now() - 100);
+    const tx = makeTx({
+      status: TransactionStatus.ESCROW_HELD,
+      releaseAttempts: 3,
+      nextReleaseAttemptAt: soon,
+    });
+    const { service, txRepo } = makeService({
+      txs: [tx],
+      gatewayOverrides: {
+        releaseEscrow: jest.fn().mockRejectedValue(new Error('permanent')),
+      },
+    });
+    txRepo.find.mockResolvedValue([tx]);
+
+    await service.processScheduledReleaseRetries();
+
+    expect(tx.status).toBe(TransactionStatus.RELEASE_FAILED);
+    expect(tx.nextReleaseAttemptAt).toBeNull();
+  });
+
+  it('does nothing when no retries are pending', async () => {
+    const { service, txRepo, gateway } = makeService({ txs: [] });
+    txRepo.find.mockResolvedValue([]);
+
+    await service.processScheduledReleaseRetries();
+
+    expect(gateway.releaseEscrow).not.toHaveBeenCalled();
+  });
+});
+
+// ── adminRetryRelease ─────────────────────────────────────────────────────────
+
+describe('TransactionsService.adminRetryRelease', () => {
+  it('resets RELEASE_FAILED → ESCROW_HELD and triggers gateway release', async () => {
+    const tx = makeTx({ status: TransactionStatus.RELEASE_FAILED, releaseAttempts: 4 });
+    const listing = makeListing({ status: ListingStatus.INACTIVE });
+    const { service, gateway } = makeService({ txs: [tx], listings: [listing] });
+
+    const result = await service.adminRetryRelease('tx-1');
+
+    expect(gateway.releaseEscrow).toHaveBeenCalled();
+    expect(result.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
+    expect(result.releaseAttempts).toBe(0);
+  });
+
+  it('schedules retry when gateway fails during admin retry', async () => {
+    const tx = makeTx({ status: TransactionStatus.RELEASE_FAILED, releaseAttempts: 4 });
+    const { service } = makeService({
+      txs: [tx],
+      gatewayOverrides: {
+        releaseEscrow: jest.fn().mockRejectedValue(new Error('still down')),
+      },
+    });
+
+    const result = await service.adminRetryRelease('tx-1');
+
+    // reset happened (attempts=0), then failed → attempts=1, status=ESCROW_HELD
+    expect(result.status).toBe(TransactionStatus.ESCROW_HELD);
+    expect(result.releaseAttempts).toBe(1);
+  });
+
+  it('throws NotFoundException when transaction does not exist', async () => {
+    const { service } = makeService({ txs: [] });
+    await expect(service.adminRetryRelease('no-such')).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws UnprocessableEntityException when tx is not RELEASE_FAILED', async () => {
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD });
+    const { service } = makeService({ txs: [tx] });
+    await expect(service.adminRetryRelease('tx-1')).rejects.toThrow(UnprocessableEntityException);
+  });
+});
+
+// ── listAdminTransactions ─────────────────────────────────────────────────────
+
+describe('TransactionsService.listAdminTransactions', () => {
+  it('queries by status when status is provided', async () => {
+    const tx = makeTx({ status: TransactionStatus.RELEASE_FAILED });
+    const { service, txRepo } = makeService({ txs: [tx] });
+    txRepo.find.mockResolvedValue([tx]);
+
+    const result = await service.listAdminTransactions(TransactionStatus.RELEASE_FAILED);
+
+    expect(txRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: TransactionStatus.RELEASE_FAILED } }),
+    );
+    expect(result).toEqual([tx]);
+  });
+
+  it('queries with empty filter when no status is provided', async () => {
+    const { service, txRepo } = makeService({ txs: [] });
+    txRepo.find.mockResolvedValue([]);
+
+    await service.listAdminTransactions();
+
+    expect(txRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {} }),
+    );
+  });
+});
+
+// ── resolveDispute ────────────────────────────────────────────────────────────
+
+function makeDispute(overrides: Partial<DisputeRecord> = {}): DisputeRecord {
+  return {
+    id: 'dispute-1',
+    transactionId: 'tx-1',
+    raisedByUserId: 'buyer-1',
+    reason: 'item not as described',
+    evidence: null,
+    status: DisputeStatus.OPEN,
+    resolvedAt: null,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+    ...overrides,
+  } as DisputeRecord;
+}
+
+describe('TransactionsService.resolveDispute', () => {
+  it('BUYER_REFUNDED: calls refundBuyer, transitions DISPUTED→BUYER_REFUNDED, resolves DisputeRecord', async () => {
+    const tx = makeTx({ status: TransactionStatus.DISPUTED, momoTransId: '9999' });
+    const dispute = makeDispute();
+    const { service, txRepo, disputeRepo, gateway } = makeService({ txs: [tx] });
+    disputeRepo.findOne.mockResolvedValue(dispute);
+
+    const result = await service.resolveDispute('tx-1', 'BUYER_REFUNDED');
+
+    expect(gateway.refundBuyer).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: tx.momoOrderId, amount: Number(tx.amountVND), transId: '9999' }),
+    );
+    expect(result.status).toBe(TransactionStatus.BUYER_REFUNDED);
+    expect(result.releasedAt).toBeInstanceOf(Date);
+    expect(txRepo.save).toHaveBeenCalled();
+    expect(dispute.status).toBe(DisputeStatus.RESOLVED_BUYER);
+    expect(dispute.resolvedAt).toBeInstanceOf(Date);
+    expect(disputeRepo.save).toHaveBeenCalledWith(dispute);
+  });
+
+  it('SELLER_RELEASED: calls releaseEscrow, transitions DISPUTED→RELEASED_TO_SELLER, resolves DisputeRecord', async () => {
+    const tx = makeTx({ status: TransactionStatus.DISPUTED });
+    const listing = makeListing({ status: ListingStatus.INACTIVE });
+    const dispute = makeDispute();
+    const { service, txRepo, disputeRepo, gateway } = makeService({ txs: [tx], listings: [listing] });
+    disputeRepo.findOne.mockResolvedValue(dispute);
+
+    const result = await service.resolveDispute('tx-1', 'SELLER_RELEASED');
+
+    expect(gateway.releaseEscrow).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: tx.momoOrderId, amount: Number(tx.amountVND) }),
+    );
+    expect(result.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
+    expect(result.releasedAt).toBeInstanceOf(Date);
+    expect(txRepo.save).toHaveBeenCalled();
+    expect(dispute.status).toBe(DisputeStatus.RESOLVED_SELLER);
+    expect(dispute.resolvedAt).toBeInstanceOf(Date);
+    expect(disputeRepo.save).toHaveBeenCalledWith(dispute);
+  });
+
+  it('SELLER_RELEASED: marks listing as SOLD', async () => {
+    const tx = makeTx({ status: TransactionStatus.DISPUTED });
+    const listing = makeListing({ status: ListingStatus.INACTIVE });
+    const { service, listingRepo, disputeRepo } = makeService({ txs: [tx], listings: [listing] });
+    disputeRepo.findOne.mockResolvedValue(makeDispute());
+
+    await service.resolveDispute('tx-1', 'SELLER_RELEASED');
+
+    const savedListing = listingRepo.save.mock.calls[0]?.[0];
+    expect(savedListing?.status).toBe(ListingStatus.SOLD);
+  });
+
+  it('BUYER_REFUNDED: unlocks listing to ACTIVE', async () => {
+    const tx = makeTx({ status: TransactionStatus.DISPUTED, momoTransId: '9999' });
+    const listing = makeListing({ status: ListingStatus.INACTIVE });
+    const { service, listingRepo, disputeRepo } = makeService({ txs: [tx], listings: [listing] });
+    disputeRepo.findOne.mockResolvedValue(makeDispute());
+
+    await service.resolveDispute('tx-1', 'BUYER_REFUNDED');
+
+    const savedListing = listingRepo.save.mock.calls[0]?.[0];
+    expect(savedListing?.status).toBe(ListingStatus.ACTIVE);
+  });
+
+  it('throws NotFoundException when transaction does not exist', async () => {
+    const { service } = makeService({ txs: [] });
+    await expect(service.resolveDispute('no-such', 'BUYER_REFUNDED')).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws UnprocessableEntityException when transaction is not DISPUTED', async () => {
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD });
+    const { service } = makeService({ txs: [tx] });
+    await expect(service.resolveDispute('tx-1', 'BUYER_REFUNDED')).rejects.toThrow(
+      UnprocessableEntityException,
+    );
+  });
+
+  it('throws NotFoundException when DisputeRecord is missing', async () => {
+    const tx = makeTx({ status: TransactionStatus.DISPUTED });
+    const { service } = makeService({ txs: [tx] });
+    // disputeRepo.findOne returns null by default in makeService
+    await expect(service.resolveDispute('tx-1', 'BUYER_REFUNDED')).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws InternalServerErrorException when refundBuyer gateway call fails', async () => {
+    const tx = makeTx({ status: TransactionStatus.DISPUTED, momoTransId: '9999' });
+    const { service, disputeRepo } = makeService({
+      txs: [tx],
+      gatewayOverrides: {
+        refundBuyer: jest.fn().mockRejectedValue(new Error('MoMo timeout')),
+      },
+    });
+    disputeRepo.findOne.mockResolvedValue(makeDispute());
+
+    await expect(service.resolveDispute('tx-1', 'BUYER_REFUNDED')).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
+  it('throws InternalServerErrorException when releaseEscrow gateway call fails', async () => {
+    const tx = makeTx({ status: TransactionStatus.DISPUTED });
+    const { service, disputeRepo } = makeService({
+      txs: [tx],
+      gatewayOverrides: {
+        releaseEscrow: jest.fn().mockRejectedValue(new Error('MoMo timeout')),
+      },
+    });
+    disputeRepo.findOne.mockResolvedValue(makeDispute());
+
+    await expect(service.resolveDispute('tx-1', 'SELLER_RELEASED')).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
+  it('does NOT save transaction when gateway call fails', async () => {
+    const tx = makeTx({ status: TransactionStatus.DISPUTED, momoTransId: '9999' });
+    const { service, txRepo, disputeRepo } = makeService({
+      txs: [tx],
+      gatewayOverrides: {
+        refundBuyer: jest.fn().mockRejectedValue(new Error('network error')),
+      },
+    });
+    disputeRepo.findOne.mockResolvedValue(makeDispute());
+
+    await expect(service.resolveDispute('tx-1', 'BUYER_REFUNDED')).rejects.toThrow();
+    expect(txRepo.save).not.toHaveBeenCalled();
   });
 });

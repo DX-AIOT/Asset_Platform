@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Body,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -16,6 +17,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { TransactionsService } from './transactions.service';
+import { TransactionStatus } from './entities/transaction.entity';
 import { IpnPayload } from '../payments/interfaces/payment-gateway.interface';
 
 class InitiateTransactionDto {
@@ -24,6 +26,10 @@ class InitiateTransactionDto {
 
 class RaiseDisputeDto {
   reason!: string;
+}
+
+class ResolveDisputeDto {
+  resolution!: 'BUYER_REFUNDED' | 'SELLER_RELEASED';
 }
 
 @ApiTags('transactions')
@@ -50,7 +56,7 @@ export class TransactionsController {
   @Post('transactions/:id/confirm-receipt')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Buyer confirms receipt — escrow released to seller' })
+  @ApiOperation({ summary: 'Buyer confirms receipt — triggers MoMo escrow release to seller' })
   confirmReceipt(@Param('id') id: string, @CurrentUser() user: { id: string }) {
     return this.service.confirmReceipt(id, user.id);
   }
@@ -67,14 +73,34 @@ export class TransactionsController {
     return this.service.raiseDispute(id, user.id, dto.reason);
   }
 
-  @Post('transactions/:id/resolve-dispute')
+  @Post('admin/transactions/:id/resolve-dispute')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
-  @HttpCode(HttpStatus.NOT_IMPLEMENTED)
-  @ApiOperation({ summary: '[Admin] Resolve dispute — pending admin UI (Sprint 5 stub)' })
-  resolveDispute() {
-    return { message: 'Dispute resolution UI pending — manual resolution required' };
+  @ApiOperation({ summary: '[Admin] Resolve dispute — refund buyer or release escrow to seller' })
+  resolveDispute(
+    @Param('id') id: string,
+    @Body() dto: ResolveDisputeDto,
+  ) {
+    return this.service.resolveDispute(id, dto.resolution);
+  }
+
+  @Get('admin/transactions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '[Admin] List transactions by status — use ?status=release_failed for stuck releases' })
+  adminListTransactions(@Query('status') status?: TransactionStatus) {
+    return this.service.listAdminTransactions(status);
+  }
+
+  @Post('admin/transactions/:id/retry-release')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '[Admin] Manually retry escrow release for a RELEASE_FAILED transaction' })
+  adminRetryRelease(@Param('id') id: string) {
+    return this.service.adminRetryRelease(id);
   }
 
   @Post('webhooks/momo/ipn')

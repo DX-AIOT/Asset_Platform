@@ -23,6 +23,7 @@ export enum TransactionStatus {
 /** Valid FSM transitions: PENDING_PAYMENT → ESCROW_HELD | PAYMENT_FAILED
  *  ESCROW_HELD → RELEASED_TO_SELLER | BUYER_REFUNDED | RELEASE_FAILED | DISPUTED
  *  DISPUTED → RELEASED_TO_SELLER | BUYER_REFUNDED
+ *  RELEASE_FAILED → ESCROW_HELD (admin retry reset)
  */
 export const TRANSACTION_FSM: Readonly<Partial<Record<TransactionStatus, TransactionStatus[]>>> = {
   [TransactionStatus.PENDING_PAYMENT]: [
@@ -38,6 +39,9 @@ export const TRANSACTION_FSM: Readonly<Partial<Record<TransactionStatus, Transac
   [TransactionStatus.DISPUTED]: [
     TransactionStatus.RELEASED_TO_SELLER,
     TransactionStatus.BUYER_REFUNDED,
+  ],
+  [TransactionStatus.RELEASE_FAILED]: [
+    TransactionStatus.ESCROW_HELD,
   ],
 };
 
@@ -97,6 +101,12 @@ export class Transaction {
 
   @Column({ type: 'timestamptz', nullable: true })
   releaseAfter!: Date | null;
+
+  @Column({ type: 'int', default: 0 })
+  releaseAttempts!: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  nextReleaseAttemptAt!: Date | null;
 
   @CreateDateColumn()
   createdAt!: Date;

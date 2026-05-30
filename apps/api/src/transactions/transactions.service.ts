@@ -8,16 +8,19 @@ import {
   Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual } from 'typeorm';
+import { Repository, LessThanOrEqual, IsNull, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Transaction, TransactionStatus, TRANSACTION_FSM } from './entities/transaction.entity';
-import { DisputeRecord } from './entities/dispute-record.entity';
+import { DisputeRecord, DisputeStatus } from './entities/dispute-record.entity';
 import { Listing, ListingStatus } from '../marketplace/entities/listing.entity';
 import {
   IPaymentGateway,
   PAYMENT_GATEWAY,
   IpnPayload,
 } from '../payments/interfaces/payment-gateway.interface';
+
+// Delays (ms) before each retry: attempt 1 → +1 min, attempt 2 → +5 min, attempt 3 → +15 min
+const RELEASE_RETRY_DELAYS_MS = [60_000, 300_000, 900_000];
 
 @Injectable()
 export class TransactionsService {
@@ -43,6 +46,55 @@ export class TransactionsService {
       );
     }
     tx.status = next;
+  }
+
+  /**
+   * Calls MoMo releaseEscrow for `tx`. On success: → RELEASED_TO_SELLER, marks listing SOLD.
+   * On failure: increments releaseAttempts and schedules next retry at 1m/5m/15m intervals.
+   * After all retries exhausted (> RELEASE_RETRY_DELAYS_MS.length) → RELEASE_FAILED + ops alert.
+   */
+  private async attemptGatewayRelease(tx: Transaction): Promise<void> {
+    try {
+      await this.gateway.releaseEscrow({
+        orderId: tx.momoOrderId!,
+        requestId: `REL-${tx.id.replace(/-/g, '').slice(0, 14)}-${tx.releaseAttempts}`,
+        amount: tx.amountVND,
+        description: `Release escrow txId=${tx.id}`,
+      });
+
+      this.transition(tx, TransactionStatus.RELEASED_TO_SELLER);
+      tx.releasedAt = new Date();
+      tx.nextReleaseAttemptAt = null;
+      await this.txRepo.save(tx);
+
+      const listing = await this.listingRepo.findOne({ where: { id: tx.listingId } });
+      if (listing) {
+        listing.status = ListingStatus.SOLD;
+        await this.listingRepo.save(listing);
+      }
+
+      this.logger.log(
+        `Gateway release success →RELEASED_TO_SELLER txId=${tx.id} attempt=${tx.releaseAttempts}`,
+      );
+    } catch (err) {
+      tx.releaseAttempts += 1;
+
+      if (tx.releaseAttempts > RELEASE_RETRY_DELAYS_MS.length) {
+        this.transition(tx, TransactionStatus.RELEASE_FAILED);
+        tx.nextReleaseAttemptAt = null;
+        await this.txRepo.save(tx);
+        this.logger.error(
+          `RELEASE_FAILED after ${tx.releaseAttempts} attempts txId=${tx.id} amountVND=${tx.amountVND} — OPS_ALERT: manual intervention required`,
+        );
+      } else {
+        const delayMs = RELEASE_RETRY_DELAYS_MS[tx.releaseAttempts - 1];
+        tx.nextReleaseAttemptAt = new Date(Date.now() + delayMs);
+        await this.txRepo.save(tx);
+        this.logger.warn(
+          `Gateway release failed txId=${tx.id} attempt=${tx.releaseAttempts}/${RELEASE_RETRY_DELAYS_MS.length + 1}, next retry at ${tx.nextReleaseAttemptAt.toISOString()} err=${err}`,
+        );
+      }
+    }
   }
 
   async initiate(listingId: string, buyerId: string) {
@@ -171,18 +223,14 @@ export class TransactionsService {
     const tx = await this.txRepo.findOne({ where: { id } });
     if (!tx) throw new NotFoundException('Transaction not found');
     if (tx.buyerId !== userId) throw new ForbiddenException('Only the buyer can confirm receipt');
-
-    this.transition(tx, TransactionStatus.RELEASED_TO_SELLER);
-    tx.releasedAt = new Date();
-    await this.txRepo.save(tx);
-
-    const listing = await this.listingRepo.findOne({ where: { id: tx.listingId } });
-    if (listing) {
-      listing.status = ListingStatus.SOLD;
-      await this.listingRepo.save(listing);
+    if (tx.status !== TransactionStatus.ESCROW_HELD) {
+      throw new UnprocessableEntityException(
+        `Cannot confirm receipt: transaction is ${tx.status}`,
+      );
     }
 
-    this.logger.log(`confirmReceipt ESCROW_HELD→RELEASED_TO_SELLER txId=${id}`);
+    await this.attemptGatewayRelease(tx);
+    this.logger.log(`confirmReceipt buyer=${userId} txId=${id} → ${tx.status}`);
     return tx;
   }
 
@@ -204,18 +252,155 @@ export class TransactionsService {
     return tx;
   }
 
-  async releaseExpiredEscrows(): Promise<void> {
-    const expired = await this.txRepo.find({
-      where: { status: TransactionStatus.ESCROW_HELD, releaseAfter: LessThanOrEqual(new Date()) },
-    });
+  async resolveDispute(
+    id: string,
+    resolution: 'BUYER_REFUNDED' | 'SELLER_RELEASED',
+  ): Promise<Transaction> {
+    const tx = await this.txRepo.findOne({ where: { id } });
+    if (!tx) throw new NotFoundException('Transaction not found');
 
-    for (const tx of expired) {
-      this.transition(tx, TransactionStatus.RELEASED_TO_SELLER);
-      tx.releasedAt = new Date();
-      await this.txRepo.save(tx);
-      this.logger.log(
-        `Auto-release ESCROW_HELD→RELEASED_TO_SELLER txId=${tx.id} amountVND=${tx.amountVND}`,
+    if (tx.status !== TransactionStatus.DISPUTED) {
+      throw new UnprocessableEntityException(
+        `Cannot resolve dispute: transaction is in state ${tx.status}`,
       );
     }
+
+    const dispute = await this.disputeRepo.findOne({ where: { transactionId: id } });
+    if (!dispute) throw new NotFoundException('Dispute record not found');
+
+    if (!tx.momoOrderId) {
+      throw new UnprocessableEntityException('MoMo order ID missing — cannot proceed');
+    }
+
+    const resolveRequestId = `RES-${id.replace(/-/g, '').slice(0, 16)}`;
+
+    if (resolution === 'BUYER_REFUNDED') {
+      if (!tx.momoTransId) {
+        throw new UnprocessableEntityException('MoMo transaction ID missing — cannot refund');
+      }
+      try {
+        await this.gateway.refundBuyer({
+          orderId: tx.momoOrderId,
+          requestId: resolveRequestId,
+          amount: Number(tx.amountVND),
+          transId: tx.momoTransId,
+          description: `Dispute resolved in buyer favour txId=${id}`,
+        });
+      } catch (err) {
+        this.logger.error(`refundBuyer failed txId=${id}: ${err}`);
+        throw new InternalServerErrorException('MoMo refund failed — ops must retry manually');
+      }
+
+      this.transition(tx, TransactionStatus.BUYER_REFUNDED);
+      tx.releasedAt = new Date();
+      dispute.status = DisputeStatus.RESOLVED_BUYER;
+
+      await this.unlockListing(tx.listingId);
+    } else {
+      try {
+        await this.gateway.releaseEscrow({
+          orderId: tx.momoOrderId,
+          requestId: resolveRequestId,
+          amount: Number(tx.amountVND),
+          description: `Dispute resolved in seller favour txId=${id}`,
+        });
+      } catch (err) {
+        this.logger.error(`releaseEscrow failed txId=${id}: ${err}`);
+        throw new InternalServerErrorException('MoMo release failed — ops must retry manually');
+      }
+
+      this.transition(tx, TransactionStatus.RELEASED_TO_SELLER);
+      tx.releasedAt = new Date();
+      dispute.status = DisputeStatus.RESOLVED_SELLER;
+
+      const listing = await this.listingRepo.findOne({ where: { id: tx.listingId } });
+      if (listing) {
+        listing.status = ListingStatus.SOLD;
+        await this.listingRepo.save(listing);
+      }
+    }
+
+    dispute.resolvedAt = new Date();
+    await this.txRepo.save(tx);
+    await this.disputeRepo.save(dispute);
+
+    this.logger.log(
+      `resolveDispute DISPUTED→${tx.status} resolution=${resolution} txId=${id} buyerId=${tx.buyerId} sellerId=${tx.sellerId}`,
+    );
+
+    return tx;
+  }
+
+  /**
+   * Auto-release cron target: release all ESCROW_HELD transactions whose releaseAfter has passed
+   * and which have no open dispute and are not already in a retry cycle. Idempotent.
+   */
+  async releaseExpiredEscrows(): Promise<void> {
+    const expired = await this.txRepo.find({
+      where: {
+        status: TransactionStatus.ESCROW_HELD,
+        releaseAfter: LessThanOrEqual(new Date()),
+        nextReleaseAttemptAt: IsNull(),
+      },
+    });
+
+    if (expired.length === 0) return;
+
+    // Exclude transactions with open disputes
+    const txIds = expired.map((t) => t.id);
+    const openDisputes = await this.disputeRepo.find({
+      where: { transactionId: In(txIds), status: DisputeStatus.OPEN },
+    });
+    const disputedIds = new Set(openDisputes.map((d) => d.transactionId));
+    const toRelease = expired.filter((t) => !disputedIds.has(t.id));
+
+    for (const tx of toRelease) {
+      this.logger.log(`Auto-release triggering gateway release txId=${tx.id}`);
+      await this.attemptGatewayRelease(tx);
+    }
+  }
+
+  /**
+   * Retry cron target: process scheduled release retries for failed ESCROW_HELD transactions.
+   */
+  async processScheduledReleaseRetries(): Promise<void> {
+    const pending = await this.txRepo.find({
+      where: {
+        status: TransactionStatus.ESCROW_HELD,
+        nextReleaseAttemptAt: LessThanOrEqual(new Date()),
+      },
+    });
+
+    for (const tx of pending) {
+      this.logger.log(
+        `Processing scheduled retry attempt=${tx.releaseAttempts} txId=${tx.id}`,
+      );
+      await this.attemptGatewayRelease(tx);
+    }
+  }
+
+  // ── Admin ────────────────────────────────────────────────────────────────────
+
+  async listAdminTransactions(status?: TransactionStatus): Promise<Transaction[]> {
+    const where = status ? { status } : {};
+    return this.txRepo.find({ where, order: { updatedAt: 'DESC' } });
+  }
+
+  async adminRetryRelease(id: string): Promise<Transaction> {
+    const tx = await this.txRepo.findOne({ where: { id } });
+    if (!tx) throw new NotFoundException('Transaction not found');
+    if (tx.status !== TransactionStatus.RELEASE_FAILED) {
+      throw new UnprocessableEntityException('Transaction is not in RELEASE_FAILED state');
+    }
+
+    // Reset to ESCROW_HELD so the normal release flow can proceed
+    this.transition(tx, TransactionStatus.ESCROW_HELD);
+    tx.releaseAttempts = 0;
+    tx.nextReleaseAttemptAt = null;
+    await this.txRepo.save(tx);
+
+    await this.attemptGatewayRelease(tx);
+    this.logger.log(`Admin retry release txId=${id} → ${tx.status}`);
+    return tx;
   }
 }
