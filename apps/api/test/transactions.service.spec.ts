@@ -183,6 +183,42 @@ describe('TransactionsService.initiate', () => {
     const savedTx = txRepo.save.mock.calls[1]?.[0] ?? txRepo.save.mock.calls[0]?.[0];
     expect(savedTx.momoPaymentUrl).toBe('https://payment.momo.vn/pay?token=abc');
   });
+
+  it('returns momoOrderId in response', async () => {
+    const listing = makeListing();
+    const { service } = makeService({ listings: [listing] });
+
+    const result = await service.initiate('listing-1', 'buyer-1');
+
+    expect(result.momoOrderId).toMatch(/^DXS-/);
+  });
+
+  it('locks listing to INACTIVE before calling the gateway', async () => {
+    const listing = makeListing();
+    const { service, listingRepo } = makeService({ listings: [listing] });
+
+    await service.initiate('listing-1', 'buyer-1');
+
+    const firstListingSave = listingRepo.save.mock.calls[0]?.[0];
+    expect(firstListingSave?.status).toBe(ListingStatus.INACTIVE);
+  });
+
+  it('unlocks listing and sets PAYMENT_FAILED when gateway throws', async () => {
+    const listing = makeListing();
+    const { service, txRepo, listingRepo } = makeService({
+      listings: [listing],
+      gatewayOverrides: {
+        initiateEscrowHold: jest.fn().mockRejectedValue(new Error('MoMo timeout')),
+      },
+    });
+
+    await expect(service.initiate('listing-1', 'buyer-1')).rejects.toThrow();
+
+    const savedStatuses = txRepo.save.mock.calls.map((c: any) => c[0].status);
+    expect(savedStatuses).toContain(TransactionStatus.PAYMENT_FAILED);
+    const savedListingStatuses = listingRepo.save.mock.calls.map((c: any) => c[0].status);
+    expect(savedListingStatuses).toContain(ListingStatus.ACTIVE);
+  });
 });
 
 // ── getTransaction ────────────────────────────────────────────────────────────
@@ -276,6 +312,53 @@ describe('TransactionsService.handleIpn', () => {
     const { service } = makeService({ txs: [] });
     await expect(service.handleIpn(makeIpnPayload())).resolves.toBeUndefined();
   });
+
+  // Amount verification
+
+  it('transitions to PAYMENT_FAILED when IPN amount does not match stored amountVND', async () => {
+    const tx = makeTx({ amountVND: 100000 });
+    const { service, txRepo } = makeService({ txs: [tx] });
+
+    await service.handleIpn(makeIpnPayload({ resultCode: 0, amount: 50000 }));
+
+    const saved: Transaction = txRepo.save.mock.calls[0][0];
+    expect(saved.status).toBe(TransactionStatus.PAYMENT_FAILED);
+    expect(saved.escrowHeldAt).toBeNull();
+  });
+
+  it('unlocks listing on amount mismatch', async () => {
+    const tx = makeTx({ amountVND: 100000 });
+    const listing = makeListing({ status: ListingStatus.INACTIVE });
+    const { service, listingRepo } = makeService({ txs: [tx], listings: [listing] });
+
+    await service.handleIpn(makeIpnPayload({ resultCode: 0, amount: 1 }));
+
+    const savedListing = listingRepo.save.mock.calls[0]?.[0];
+    expect(savedListing?.status).toBe(ListingStatus.ACTIVE);
+  });
+
+  // Listing unlock on payment failure
+
+  it('unlocks listing (INACTIVE → ACTIVE) on non-zero resultCode', async () => {
+    const tx = makeTx();
+    const listing = makeListing({ status: ListingStatus.INACTIVE });
+    const { service, listingRepo } = makeService({ txs: [tx], listings: [listing] });
+
+    await service.handleIpn(makeIpnPayload({ resultCode: 1006 }));
+
+    const savedListing = listingRepo.save.mock.calls[0]?.[0];
+    expect(savedListing?.status).toBe(ListingStatus.ACTIVE);
+  });
+
+  it('does NOT call listingRepo.save when listing is already ACTIVE on failure', async () => {
+    const tx = makeTx();
+    const listing = makeListing({ status: ListingStatus.ACTIVE });
+    const { service, listingRepo } = makeService({ txs: [tx], listings: [listing] });
+
+    await service.handleIpn(makeIpnPayload({ resultCode: 1006 }));
+
+    expect(listingRepo.save).not.toHaveBeenCalled();
+  });
 });
 
 // ── confirmReceipt ────────────────────────────────────────────────────────────
@@ -311,6 +394,17 @@ describe('TransactionsService.confirmReceipt', () => {
     await expect(service.confirmReceipt('tx-1', 'buyer-1')).rejects.toThrow(
       UnprocessableEntityException,
     );
+  });
+
+  it('marks listing as SOLD on successful confirmReceipt', async () => {
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD });
+    const listing = makeListing({ status: ListingStatus.INACTIVE });
+    const { service, listingRepo } = makeService({ txs: [tx], listings: [listing] });
+
+    await service.confirmReceipt('tx-1', 'buyer-1');
+
+    const savedListing = listingRepo.save.mock.calls[0]?.[0];
+    expect(savedListing?.status).toBe(ListingStatus.SOLD);
   });
 });
 
