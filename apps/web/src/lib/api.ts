@@ -19,6 +19,12 @@ import type {
   ListingAutofillDraft,
   ListingCondition,
 } from '@/types/listings';
+import type {
+  AdminTransaction,
+  AdminTransactionsResponse,
+  TransactionStatus,
+  ResolutionSide,
+} from '@/types/admin';
 import { getApiBaseUrl } from './api-base-url';
 
 const API_URL = getApiBaseUrl();
@@ -207,6 +213,29 @@ export async function suggestListingPrice(params: {
     body: JSON.stringify(params),
   });
 }
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+
+export async function getAdminTransactions(params?: {
+  status?: TransactionStatus;
+}): Promise<AdminTransactionsResponse> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set('status', params.status);
+  const qs = query.toString();
+  return fetchWithAuth<AdminTransactionsResponse>(`/admin/transactions${qs ? `?${qs}` : ''}`);
+}
+
+export async function resolveAdminTransaction(
+  id: string,
+  resolution: ResolutionSide
+): Promise<AdminTransaction> {
+  return fetchWithAuth<AdminTransaction>(`/admin/transactions/${id}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify({ resolution }),
+  });
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
 
 export async function getInsuranceReportPdf(categoryIds?: string[]): Promise<Blob> {
   const query = new URLSearchParams({ format: 'pdf' });
