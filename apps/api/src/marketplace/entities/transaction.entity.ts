@@ -15,6 +15,7 @@ export enum TransactionStatus {
   ESCROW = 'escrow',
   COMPLETED = 'completed',
   REFUNDED = 'refunded',
+  DISPUTED = 'disputed',
 }
 
 @Entity('marketplace_transactions')
@@ -55,6 +56,30 @@ export class Transaction {
 
   @Column({ type: 'varchar', nullable: true })
   paymentMethod!: string | null;
+
+  @Column({ unique: true, nullable: true })
+  momoOrderId!: string | null;
+
+  @Column({ unique: true, nullable: true })
+  momoRequestId!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  momoPaymentUrl!: string | null;
+
+  @Column({ nullable: true })
+  momoTransId!: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  escrowHeldAt!: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  escrowReleasedAt!: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  disputeRaisedAt!: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  releaseAfter!: Date | null;
 
   @CreateDateColumn()
   createdAt!: Date;
