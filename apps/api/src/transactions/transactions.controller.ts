@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { IsString, IsIn } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -22,14 +23,17 @@ import { TransactionStatus } from './entities/transaction.entity';
 import { IpnPayload } from '../payments/interfaces/payment-gateway.interface';
 
 class InitiateTransactionDto {
+  @IsString()
   listingId!: string;
 }
 
 class RaiseDisputeDto {
+  @IsString()
   reason!: string;
 }
 
 class ResolveDisputeDto {
+  @IsIn(['BUYER_REFUNDED', 'SELLER_RELEASED'])
   resolution!: 'BUYER_REFUNDED' | 'SELLER_RELEASED';
 }
 
