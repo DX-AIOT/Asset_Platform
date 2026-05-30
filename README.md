@@ -1,5 +1,7 @@
 # DX Solutions AIoT Asset Platform
 
+[![CI](https://github.com/DX-AIOT/Asset_Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/DX-AIOT/Asset_Platform/actions/workflows/ci.yml)
+
 Monorepo cho Asset Platform với Mobile App, Web Dashboard và Backend API.
 
 ## 📦 Cấu trúc Monorepo
