@@ -1,9 +1,9 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, Loader2, UploadCloud, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { assessCondition, createItem, getItem, updateItem } from '@/lib/api';
 import {
@@ -29,6 +29,7 @@ interface AssetFormProps {
 const CATEGORY_OPTIONS = Object.values(ItemCategory);
 const CONDITION_OPTIONS = Object.values(ItemCondition);
 const ALLOWED_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const MAX_PHOTOS = 10;
 
 function toFormState(item?: Item): CreateItemInput {
   if (!item) {
@@ -83,6 +84,38 @@ async function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{title}</h2>
+      <div className="flex-1 h-px bg-gray-200" />
+    </div>
+  );
+}
+
+function DateInput({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        type="date"
+        value={value}
+        onChange={onChange}
+        className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      />
+      <CalendarDays className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+    </div>
+  );
+}
+
 export function AssetForm({ mode, itemId }: AssetFormProps) {
   const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
@@ -95,6 +128,9 @@ export function AssetForm({ mode, itemId }: AssetFormProps) {
   const [assessmentMessage, setAssessmentMessage] = useState<string | null>(null);
   const [assessmentLowConfidence, setAssessmentLowConfidence] = useState(false);
   const [assessmentNotes, setAssessmentNotes] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const primaryInputRef = useRef<HTMLInputElement>(null);
+  const additionalInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -117,6 +153,7 @@ export function AssetForm({ mode, itemId }: AssetFormProps) {
   }, [mode, user, itemId]);
 
   const pageTitle = useMemo(() => (mode === 'create' ? 'Add Asset' : 'Edit Asset'), [mode]);
+  const photos = form.photos ?? [];
 
   const handleInputChange =
     (field: keyof CreateItemInput) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -124,15 +161,7 @@ export function AssetForm({ mode, itemId }: AssetFormProps) {
       setForm((current) => ({ ...current, [field]: value }));
     };
 
-  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      setPhotoError('Please upload a PNG, JPEG, or WEBP image');
-      return;
-    }
-
+  const runAiAssessment = async (file: File) => {
     setPhotoError(null);
     setFormError(null);
     setAssessing(true);
@@ -165,6 +194,93 @@ export function AssetForm({ mode, itemId }: AssetFormProps) {
       setPhotoError(message);
     } finally {
       setAssessing(false);
+    }
+  };
+
+  const handlePrimaryPhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+      setPhotoError('Please upload a PNG, JPEG, or WEBP image');
+      return;
+    }
+    await runAiAssessment(file);
+    event.target.value = '';
+  };
+
+  const handleAdditionalPhotos = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    const currentCount = photos.length;
+    const allowed = files.slice(0, MAX_PHOTOS - currentCount);
+
+    for (const file of allowed) {
+      if (!ALLOWED_MIME_TYPES.has(file.type)) continue;
+      const dataUrl = await fileToDataUrl(file);
+      setForm((current) => ({
+        ...current,
+        photos: [...(current.photos ?? []), dataUrl],
+      }));
+    }
+    event.target.value = '';
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setForm((current) => ({
+      ...current,
+      photos: (current.photos ?? []).filter((_, i) => i !== index),
+    }));
+    if (index === 0) {
+      setAssessmentMessage(null);
+      setAssessmentNotes(null);
+      setAssessmentLowConfidence(false);
+    }
+  };
+
+  const handleDropZoneClick = () => {
+    if (photos.length === 0) {
+      primaryInputRef.current?.click();
+    } else {
+      additionalInputRef.current?.click();
+    }
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => setIsDragging(false);
+
+  const handleDrop = async (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    const validFiles = files.filter((f) => ALLOWED_MIME_TYPES.has(f.type));
+    if (validFiles.length === 0) {
+      setPhotoError('Please upload PNG, JPEG, or WEBP images');
+      return;
+    }
+
+    if (photos.length === 0) {
+      await runAiAssessment(validFiles[0]);
+      for (const file of validFiles.slice(1, MAX_PHOTOS)) {
+        const dataUrl = await fileToDataUrl(file);
+        setForm((current) => ({
+          ...current,
+          photos: [...(current.photos ?? []), dataUrl],
+        }));
+      }
+    } else {
+      const remaining = MAX_PHOTOS - photos.length;
+      for (const file of validFiles.slice(0, remaining)) {
+        const dataUrl = await fileToDataUrl(file);
+        setForm((current) => ({
+          ...current,
+          photos: [...(current.photos ?? []), dataUrl],
+        }));
+      }
     }
   };
 
@@ -256,91 +372,138 @@ export function AssetForm({ mode, itemId }: AssetFormProps) {
       <main className="max-w-3xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-500 mb-6">
             Upload a photo for AI condition assessment, then review and save the asset details.
           </p>
 
           {formError && (
-            <div className="mt-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
               {formError}
             </div>
           )}
 
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-            <div>
-              <label className="text-sm font-medium text-gray-700" htmlFor="asset-name">
-                Name *
-              </label>
-              <Input id="asset-name" value={form.name ?? ''} onChange={handleInputChange('name')} required />
-            </div>
+          <form className="space-y-8" onSubmit={handleSubmit}>
+            {/* ── Photos & Condition ── */}
+            <section>
+              <SectionHeader title="Photos & Condition" />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700" htmlFor="asset-brand">Brand</label>
-                <Input id="asset-brand" value={form.brand ?? ''} onChange={handleInputChange('brand')} />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700" htmlFor="asset-model">Model</label>
-                <Input id="asset-model" value={form.model ?? ''} onChange={handleInputChange('model')} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700" htmlFor="asset-category">Category</label>
-                <Select
-                  id="asset-category"
-                  value={form.category ?? ItemCategory.OTHER}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, category: event.target.value as ItemCategory }))
-                  }
-                >
-                  {CATEGORY_OPTIONS.map((category) => (
-                    <option key={category} value={category}>
-                      {CATEGORY_LABELS[category]}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700" htmlFor="asset-serial">Serial</label>
-                <Input id="asset-serial" value={form.serial ?? ''} onChange={handleInputChange('serial')} />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700" htmlFor="asset-photo">Photo for AI assessment</label>
-              <Input id="asset-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={handlePhotoChange} />
-              {photoError && <p className="mt-1 text-xs text-red-700">{photoError}</p>}
-              {assessing && (
-                <p className="mt-2 inline-flex items-center gap-1 text-sm text-gray-600">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Assessing condition...
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700" htmlFor="asset-condition">Condition</label>
-              <Select
-                id="asset-condition"
-                value={form.condition ?? ItemCondition.GOOD}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, condition: event.target.value as ItemCondition }))
-                }
+              {/* Drop zone */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={handleDropZoneClick}
+                onKeyDown={(e) => e.key === 'Enter' && handleDropZoneClick()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative rounded-xl border-2 border-dashed transition-colors cursor-pointer ${
+                  isDragging
+                    ? 'border-blue-400 bg-blue-50'
+                    : photos.length > 0
+                      ? 'border-gray-200 bg-gray-50'
+                      : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50/30'
+                }`}
               >
-                {CONDITION_OPTIONS.map((condition) => (
-                  <option key={condition} value={condition}>
-                    {CONDITION_LABELS[condition]}
-                  </option>
-                ))}
-              </Select>
+                {/* Hidden file inputs */}
+                <input
+                  ref={primaryInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  onChange={handlePrimaryPhotoChange}
+                />
+                <input
+                  ref={additionalInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
+                  className="sr-only"
+                  onChange={handleAdditionalPhotos}
+                />
+
+                {photos.length === 0 ? (
+                  /* Empty state */
+                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                    {assessing ? (
+                      <>
+                        <Loader2 className="h-10 w-10 animate-spin text-blue-500 mb-3" />
+                        <p className="text-sm font-medium text-blue-700">Analyzing with AI…</p>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="h-10 w-10 text-gray-400 mb-3" />
+                        <p className="text-sm font-medium text-gray-700">Click or drag photos here</p>
+                        <p className="text-xs text-gray-400 mt-1">PNG, JPEG, WEBP · up to {MAX_PHOTOS} photos</p>
+                        <p className="text-xs text-blue-600 mt-2 font-medium">First photo runs AI condition check</p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  /* Thumbnail grid */
+                  <div className="p-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                      {photos.map((src, index) => (
+                        <div key={index} className="relative group aspect-square">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={src}
+                            alt={`Photo ${index + 1}`}
+                            className="w-full h-full object-cover rounded-lg border border-gray-200"
+                          />
+                          {index === 0 && (
+                            <span className="absolute bottom-1 left-1 text-[10px] font-semibold bg-blue-600 text-white px-1.5 py-0.5 rounded">
+                              Primary
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemovePhoto(index);
+                            }}
+                            className="absolute -top-1.5 -right-1.5 h-5 w-5 flex items-center justify-center rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                            aria-label="Remove photo"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {photos.length < MAX_PHOTOS && !assessing && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            additionalInputRef.current?.click();
+                          }}
+                          className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50/40 flex items-center justify-center transition-colors"
+                          aria-label="Add more photos"
+                        >
+                          <UploadCloud className="h-5 w-5 text-gray-400" />
+                        </button>
+                      )}
+                    </div>
+                    {assessing && (
+                      <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-blue-700 font-medium">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analyzing condition…
+                      </p>
+                    )}
+                    <p className="mt-2 text-xs text-gray-400">
+                      {photos.length}/{MAX_PHOTOS} photos · Click or drag to add more
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {photoError && <p className="mt-2 text-xs text-red-600">{photoError}</p>}
+
+              {/* AI result */}
               {assessmentMessage && (
                 <div
-                  className={`mt-2 rounded-md px-3 py-2 text-sm inline-flex items-start gap-2 ${
+                  className={`mt-3 rounded-lg px-3 py-2.5 text-sm inline-flex items-start gap-2 w-full ${
                     assessmentLowConfidence
-                      ? 'bg-amber-50 border border-amber-300 text-amber-900'
-                      : 'bg-green-50 border border-green-300 text-green-800'
+                      ? 'bg-amber-50 border border-amber-200 text-amber-900'
+                      : 'bg-green-50 border border-green-200 text-green-800'
                   }`}
                 >
                   {assessmentLowConfidence ? (
@@ -348,54 +511,154 @@ export function AssetForm({ mode, itemId }: AssetFormProps) {
                   ) : (
                     <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   )}
-                  <span>{assessmentMessage}</span>
+                  <div>
+                    <span>{assessmentMessage}</span>
+                    {assessmentNotes && (
+                      <p className="mt-0.5 text-xs opacity-80">Notes: {assessmentNotes}</p>
+                    )}
+                  </div>
                 </div>
               )}
-              {assessmentNotes && <p className="mt-2 text-sm text-gray-600">AI notes: {assessmentNotes}</p>}
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700" htmlFor="asset-purchase-date">Purchase date</label>
-                <Input id="asset-purchase-date" type="date" value={form.purchaseDate ?? ''} onChange={handleInputChange('purchaseDate')} />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700" htmlFor="asset-purchase-price">Purchase price</label>
-                <Input
-                  id="asset-purchase-price"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={form.purchasePrice ?? ''}
+              {/* Condition select */}
+              <div className="mt-4">
+                <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-condition">
+                  Condition
+                </label>
+                <Select
+                  id="asset-condition"
+                  value={form.condition ?? ItemCondition.GOOD}
                   onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      purchasePrice: event.target.value === '' ? undefined : Number(event.target.value),
-                    }))
+                    setForm((current) => ({ ...current, condition: event.target.value as ItemCondition }))
                   }
-                />
+                >
+                  {CONDITION_OPTIONS.map((condition) => (
+                    <option key={condition} value={condition}>
+                      {CONDITION_LABELS[condition]}
+                    </option>
+                  ))}
+                </Select>
               </div>
-            </div>
+            </section>
 
-            <div>
-              <label className="text-sm font-medium text-gray-700" htmlFor="asset-location">Location</label>
-              <Input id="asset-location" value={form.location ?? ''} onChange={handleInputChange('location')} />
-            </div>
+            {/* ── Basic Information ── */}
+            <section>
+              <SectionHeader title="Basic Information" />
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-name">
+                    Name <span className="text-red-500">*</span>
+                  </label>
+                  <Input id="asset-name" value={form.name ?? ''} onChange={handleInputChange('name')} required placeholder="e.g. MacBook Pro 16-inch" />
+                </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-700" htmlFor="asset-notes">Notes</label>
-              <textarea
-                id="asset-notes"
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows={4}
-                value={form.notes ?? ''}
-                onChange={handleInputChange('notes')}
-              />
-            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-brand">Brand</label>
+                    <Input id="asset-brand" value={form.brand ?? ''} onChange={handleInputChange('brand')} placeholder="e.g. Apple" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-model">Model</label>
+                    <Input id="asset-model" value={form.model ?? ''} onChange={handleInputChange('model')} placeholder="e.g. A2485" />
+                  </div>
+                </div>
 
-            <div className="flex items-center gap-2 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-category">Category</label>
+                    <Select
+                      id="asset-category"
+                      value={form.category ?? ItemCategory.OTHER}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, category: event.target.value as ItemCategory }))
+                      }
+                    >
+                      {CATEGORY_OPTIONS.map((category) => (
+                        <option key={category} value={category}>
+                          {CATEGORY_LABELS[category]}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-serial">Serial number</label>
+                    <Input id="asset-serial" value={form.serial ?? ''} onChange={handleInputChange('serial')} placeholder="e.g. C02XG1234HV" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-location">Location</label>
+                  <Input id="asset-location" value={form.location ?? ''} onChange={handleInputChange('location')} placeholder="e.g. Office 3B, Server Room" />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-notes">Notes</label>
+                  <textarea
+                    id="asset-notes"
+                    className="mt-0.5 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows={3}
+                    value={form.notes ?? ''}
+                    onChange={handleInputChange('notes')}
+                    placeholder="Additional details about this asset…"
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* ── Purchase Details ── */}
+            <section>
+              <SectionHeader title="Purchase Details" />
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-purchase-date">
+                      Purchase date
+                    </label>
+                    <DateInput
+                      id="asset-purchase-date"
+                      value={form.purchaseDate ?? ''}
+                      onChange={handleInputChange('purchaseDate')}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-purchase-price">
+                      Purchase price
+                    </label>
+                    <Input
+                      id="asset-purchase-price"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.purchasePrice ?? ''}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          purchasePrice: event.target.value === '' ? undefined : Number(event.target.value),
+                        }))
+                      }
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="asset-warranty-expiry">
+                      Warranty expiry
+                    </label>
+                    <DateInput
+                      id="asset-warranty-expiry"
+                      value={form.warrantyExpiry ?? ''}
+                      onChange={handleInputChange('warrantyExpiry')}
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
               <Button type="submit" disabled={submitting || assessing}>
-                {submitting ? 'Saving...' : mode === 'create' ? 'Create Asset' : 'Save Changes'}
+                {submitting ? 'Saving…' : mode === 'create' ? 'Create Asset' : 'Save Changes'}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.push('/dashboard/assets')}>
                 Cancel

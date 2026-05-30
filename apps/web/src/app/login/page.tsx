@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { Logo } from '@/components/ui/logo';
 
 export default function LoginPage() {
   const { login, error: authError, clearError } = useAuth();
@@ -49,36 +50,39 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to your account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Or{' '}
-            <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
-              create a new account
-            </Link>
-          </p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-slate-50 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md">
+        {/* Brand header */}
+        <div className="flex flex-col items-center mb-8">
+          <Logo size="lg" className="mb-3" />
+          <p className="text-sm text-gray-500 tracking-wide uppercase font-medium">AIoT Asset Platform</p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 px-8 py-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">Sign in</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="font-medium text-blue-600 hover:text-blue-700 underline-offset-2 hover:underline">
+              Create one
+            </Link>
+          </p>
+
           {authError && (
-            <div className="rounded-md bg-yellow-50 p-4">
-              <p className="text-sm text-yellow-800">{authError}</p>
+            <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+              <p className="text-sm text-amber-800">{authError}</p>
             </div>
           )}
 
           {errors.form && (
-            <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-800">{errors.form}</p>
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+              <p className="text-sm text-red-700">{errors.form}</p>
             </div>
           )}
 
-          <div className="rounded-md shadow-sm space-y-4">
+          <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Email address
               </label>
               <input
@@ -93,16 +97,23 @@ export default function LoginPage() {
                   setEmail(e.target.value);
                   setErrors((current) => ({ ...current, email: undefined, form: undefined }));
                 }}
-                className={`appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:z-10 sm:text-sm ${
-                  errors.email ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
+                className={`block w-full h-11 rounded-xl border px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 focus:border-transparent ${
+                  errors.email
+                    ? 'border-red-400 bg-red-50 focus:ring-red-400'
+                    : 'border-gray-300 bg-white hover:border-gray-400'
                 }`}
-                placeholder="Enter your email"
+                placeholder="you@example.com"
               />
-              {errors.email && <p className="mt-1 text-xs text-red-700">{errors.email}</p>}
+              {errors.email && (
+                <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                  <span className="inline-block w-1 h-1 rounded-full bg-red-500 flex-shrink-0" />
+                  {errors.email}
+                </p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Password
               </label>
               <input
@@ -117,36 +128,34 @@ export default function LoginPage() {
                   setPassword(e.target.value);
                   setErrors((current) => ({ ...current, password: undefined, form: undefined }));
                 }}
-                className={`appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:z-10 sm:text-sm ${
-                  errors.password ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
+                className={`block w-full h-11 rounded-xl border px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 focus:border-transparent ${
+                  errors.password
+                    ? 'border-red-400 bg-red-50 focus:ring-red-400'
+                    : 'border-gray-300 bg-white hover:border-gray-400'
                 }`}
                 placeholder="Enter your password"
               />
-              {errors.password && <p className="mt-1 text-xs text-red-700">{errors.password}</p>}
+              {errors.password && (
+                <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                  <span className="inline-block w-1 h-1 rounded-full bg-red-500 flex-shrink-0" />
+                  {errors.password}
+                </p>
+              )}
             </div>
-          </div>
 
-          <div>
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center items-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-all hover:bg-blue-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
             >
               {loading && (
                 <svg
-                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  className="animate-spin h-4 w-4 text-white"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
                 >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path
                     className="opacity-75"
                     fill="currentColor"
@@ -154,10 +163,10 @@ export default function LoginPage() {
                   />
                 </svg>
               )}
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Signing in…' : 'Sign in'}
             </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );

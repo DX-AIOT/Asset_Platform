@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import PasswordStrength from '@/components/PasswordStrength';
 import { useToast } from '@/contexts/ToastContext';
+import { Logo } from '@/components/ui/logo';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -53,75 +54,87 @@ export default function RegisterPage() {
     }
   };
 
+  const fieldClass = (hasError: boolean) =>
+    `block w-full h-11 rounded-xl border px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0 focus:border-transparent ${
+      hasError
+        ? 'border-red-400 bg-red-50 focus:ring-red-400'
+        : 'border-gray-300 bg-white hover:border-gray-400 focus:ring-blue-500'
+    }`;
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Or{' '}
-            <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              sign in to existing account
-            </Link>
-          </p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-slate-50 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md">
+        {/* Brand header */}
+        <div className="flex flex-col items-center mb-8">
+          <Logo size="lg" className="mb-3" />
+          <p className="text-sm text-gray-500 tracking-wide uppercase font-medium">AIoT Asset Platform</p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 px-8 py-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">Create account</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Already have an account?{' '}
+            <Link href="/login" className="font-medium text-blue-600 hover:text-blue-700 underline-offset-2 hover:underline">
+              Sign in
+            </Link>
+          </p>
+
           {errors.form && (
-            <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-800">{errors.form}</p>
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+              <p className="text-sm text-red-700">{errors.form}</p>
             </div>
           )}
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1.5">
                   First name
                 </label>
                 <input
                   id="firstName"
                   name="firstName"
                   type="text"
+                  autoComplete="given-name"
                   value={firstName}
                   onChange={(e) => {
                     setFirstName(e.target.value);
-                    setErrors((current) => ({ ...current, firstName: '', form: '' }));
+                    setErrors((c) => ({ ...c, firstName: '', form: '' }));
                   }}
-                  className={`appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 sm:text-sm ${
-                    errors.firstName ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
-                  }`}
+                  className={fieldClass(!!errors.firstName)}
                   placeholder="John"
                 />
-                {errors.firstName && <p className="mt-1 text-xs text-red-700">{errors.firstName}</p>}
+                {errors.firstName && (
+                  <p className="mt-1.5 text-xs text-red-600">{errors.firstName}</p>
+                )}
               </div>
 
               <div>
-                <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Last name
                 </label>
                 <input
                   id="lastName"
                   name="lastName"
                   type="text"
+                  autoComplete="family-name"
                   value={lastName}
                   onChange={(e) => {
                     setLastName(e.target.value);
-                    setErrors((current) => ({ ...current, lastName: '', form: '' }));
+                    setErrors((c) => ({ ...c, lastName: '', form: '' }));
                   }}
-                  className={`appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 sm:text-sm ${
-                    errors.lastName ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
-                  }`}
+                  className={fieldClass(!!errors.lastName)}
                   placeholder="Doe"
                 />
-                {errors.lastName && <p className="mt-1 text-xs text-red-700">{errors.lastName}</p>}
+                {errors.lastName && (
+                  <p className="mt-1.5 text-xs text-red-600">{errors.lastName}</p>
+                )}
               </div>
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Email address
               </label>
               <input
@@ -133,18 +146,18 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  setErrors((current) => ({ ...current, email: '', form: '' }));
+                  setErrors((c) => ({ ...c, email: '', form: '' }));
                 }}
-                className={`appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 sm:text-sm ${
-                  errors.email ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
-                }`}
-                placeholder="Enter your email"
+                className={fieldClass(!!errors.email)}
+                placeholder="you@example.com"
               />
-              {errors.email && <p className="mt-1 text-xs text-red-700">{errors.email}</p>}
+              {errors.email && (
+                <p className="mt-1.5 text-xs text-red-600">{errors.email}</p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Password
               </label>
               <input
@@ -156,40 +169,30 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
-                  setErrors((current) => ({ ...current, password: '', form: '' }));
+                  setErrors((c) => ({ ...c, password: '', form: '' }));
                 }}
-                className={`appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 sm:text-sm ${
-                  errors.password ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
-                }`}
+                className={fieldClass(!!errors.password)}
                 placeholder="At least 6 characters"
               />
-              {errors.password && <p className="mt-1 text-xs text-red-700">{errors.password}</p>}
+              {errors.password && (
+                <p className="mt-1.5 text-xs text-red-600">{errors.password}</p>
+              )}
               <PasswordStrength password={password} />
-              <p className="mt-1 text-xs text-gray-500">Minimum 6 characters</p>
             </div>
-          </div>
 
-          <div>
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center items-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-all hover:bg-blue-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
             >
               {loading && (
                 <svg
-                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  className="animate-spin h-4 w-4 text-white"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
                 >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path
                     className="opacity-75"
                     fill="currentColor"
@@ -197,10 +200,10 @@ export default function RegisterPage() {
                   />
                 </svg>
               )}
-              {loading ? 'Creating account...' : 'Create account'}
+              {loading ? 'Creating account…' : 'Create account'}
             </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );
