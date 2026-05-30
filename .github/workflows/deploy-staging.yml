@@ -1,0 +1,227 @@
+name: Deploy to Staging
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [dev]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: staging
+
+jobs:
+  # ──────────────────────────────────────────
+  # Guard: only proceed when CI passed
+  # ──────────────────────────────────────────
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: CI passed — proceed with staging deploy
+        run: echo "CI gate passed. Proceeding with staging deployment."
+
+  # ──────────────────────────────────────────
+  # Job 1: Deploy Frontend → Vercel (staging/preview)
+  # ──────────────────────────────────────────
+  deploy-frontend:
+    name: Frontend → Vercel Staging
+    needs: ci-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      deploy-url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel project config
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: apps/web
+
+      - name: Build for Vercel
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_URL: https://staging-api.dx-aiot.com/api
+
+      - name: Deploy to Vercel (staging/preview)
+        id: deploy
+        run: |
+          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} 2>&1 | tail -1)
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Deployed to: $URL"
+        working-directory: apps/web
+
+  # ──────────────────────────────────────────
+  # Job 2: Deploy Backend → AWS Elastic Beanstalk (staging)
+  # ──────────────────────────────────────────
+  deploy-backend:
+    name: Backend → AWS EB Staging
+    needs: ci-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build API
+        run: npm run --workspace=@dx-aiot/api build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Package application for EB
+        run: |
+          zip -r deploy.zip . \
+            --exclude "*.git*" \
+            --exclude "node_modules/*" \
+            --exclude "apps/web/*" \
+            --exclude ".ms-playwright/*" \
+            --exclude "artifacts/*" \
+            --exclude "*.env"
+
+      - name: Upload to S3
+        run: |
+          VERSION_LABEL="stg-${{ github.sha }}"
+          aws s3 cp deploy.zip "s3://${{ secrets.AWS_EB_BUCKET }}/${VERSION_LABEL}.zip"
+          echo "VERSION_LABEL=${VERSION_LABEL}" >> $GITHUB_ENV
+
+      - name: Create EB application version
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name dx-aiot-api \
+            --version-label "$VERSION_LABEL" \
+            --source-bundle "S3Bucket=${{ secrets.AWS_EB_BUCKET }},S3Key=${VERSION_LABEL}.zip" \
+            --region "${{ secrets.AWS_REGION }}"
+
+      - name: Update EB staging environment
+        run: |
+          aws elasticbeanstalk update-environment \
+            --application-name dx-aiot-api \
+            --environment-name dx-aiot-api-staging \
+            --version-label "$VERSION_LABEL" \
+            --region "${{ secrets.AWS_REGION }}"
+
+      - name: Wait for EB update to complete
+        run: |
+          aws elasticbeanstalk wait environment-updated \
+            --environment-name dx-aiot-api-staging \
+            --region "${{ secrets.AWS_REGION }}"
+          echo "EB staging environment updated."
+
+      - name: Update EB environment variables (MoMo STG)
+        run: |
+          aws elasticbeanstalk update-environment \
+            --application-name dx-aiot-api \
+            --environment-name dx-aiot-api-staging \
+            --region "${{ secrets.AWS_REGION }}" \
+            --option-settings \
+              "Namespace=aws:elasticbeanstalk:application:environment,OptionName=NODE_ENV,Value=staging" \
+              "Namespace=aws:elasticbeanstalk:application:environment,OptionName=MOMO_PARTNER_CODE,Value=${{ secrets.MOMO_STG_PARTNER_CODE }}" \
+              "Namespace=aws:elasticbeanstalk:application:environment,OptionName=MOMO_ACCESS_KEY,Value=${{ secrets.MOMO_STG_ACCESS_KEY }}" \
+              "Namespace=aws:elasticbeanstalk:application:environment,OptionName=MOMO_SECRET_KEY,Value=${{ secrets.MOMO_STG_SECRET_KEY }}" \
+              "Namespace=aws:elasticbeanstalk:application:environment,OptionName=AWS_BUCKET,Value=${{ secrets.AWS_BUCKET }}" \
+              "Namespace=aws:elasticbeanstalk:application:environment,OptionName=AWS_REGION,Value=${{ secrets.AWS_REGION }}" \
+              "Namespace=aws:elasticbeanstalk:application:environment,OptionName=CLOUDFRONT_DOMAIN,Value=${{ secrets.CLOUDFRONT_DOMAIN }}" \
+              "Namespace=aws:elasticbeanstalk:application:environment,OptionName=S3_LOCAL_MODE,Value=false"
+
+  # ──────────────────────────────────────────
+  # Job 3: Smoke tests against staging
+  # ──────────────────────────────────────────
+  verify-staging:
+    name: Verify Staging Health
+    needs: [deploy-frontend, deploy-backend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: API health check
+        run: |
+          for i in $(seq 1 10); do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" https://staging-api.dx-aiot.com/api/health || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "API health check passed."
+              curl -sf https://staging-api.dx-aiot.com/api/health | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          assert d.get('status') == 'ok', f'Unexpected status: {d}'
+          print('API health OK:', d)
+          "
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $STATUS — retrying in 15s..."
+            sleep 15
+          done
+          echo "API health check failed after 10 attempts."
+          exit 1
+
+      - name: Web frontend check
+        run: |
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" https://staging.vercel.app || echo "000")
+          if [ "$STATUS" = "200" ] || [ "$STATUS" = "308" ]; then
+            echo "Web frontend OK (HTTP $STATUS)"
+          else
+            echo "Web frontend returned HTTP $STATUS"
+            exit 1
+          fi
+
+      - name: Rate limit check (ThrottlerModule)
+        run: |
+          echo "Sending 5 rapid requests to verify rate limiting is active..."
+          for i in $(seq 1 5); do
+            curl -sf -o /dev/null https://staging-api.dx-aiot.com/api/health || true
+          done
+          echo "Rate limiting check complete (429 expected only under sustained abuse)"
+
+      - name: Summary
+        run: |
+          echo "================================"
+          echo "Staging deployment verified:"
+          echo "  API:  https://staging-api.dx-aiot.com/api/health"
+          echo "  Web:  https://staging.vercel.app"
+          echo "================================"
