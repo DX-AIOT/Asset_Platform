@@ -11,6 +11,8 @@ import { MarketValuationService } from './market-valuation.service';
 import { ValuationCacheService } from './valuation-cache.service';
 import { ConditionAssessmentService } from './condition-assessment.service';
 import { PriceHistoryService } from './price-history.service';
+import { ListingSuggestionService } from './listing-suggestion.service';
+import { ListingSuggestionCacheService } from './listing-suggestion-cache.service';
 import { Item } from '../items/entities/item.entity';
 import { PriceHistory } from '../items/entities/price-history.entity';
 
@@ -26,6 +28,8 @@ import { PriceHistory } from '../items/entities/price-history.entity';
     ValuationCacheService,
     ConditionAssessmentService,
     PriceHistoryService,
+    ListingSuggestionService,
+    ListingSuggestionCacheService,
   ],
   exports: [ConditionAssessmentService, PriceHistoryService],
 })

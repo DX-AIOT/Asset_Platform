@@ -5,6 +5,7 @@ import { BarcodeLookupService } from './barcode-lookup.service';
 import { MarketValuationService } from './market-valuation.service';
 import { ValuationCacheService } from './valuation-cache.service';
 import { ConditionAssessmentService } from './condition-assessment.service';
+import { ListingSuggestionService } from './listing-suggestion.service';
 
 describe('AiController', () => {
   const createController = () => {
@@ -34,11 +35,16 @@ describe('AiController', () => {
         latencyMs: 50,
       }),
     } as unknown as ConditionAssessmentService;
+    const listingSuggestionService = {
+      suggestPrice: jest.fn(),
+      autofill: jest.fn(),
+    } as unknown as ListingSuggestionService;
     const controller = new AiController(
       mockVisionService,
       barcodeService,
       valuationService,
       conditionService,
+      listingSuggestionService,
     );
 
     return { controller, mockVisionService, conditionService };

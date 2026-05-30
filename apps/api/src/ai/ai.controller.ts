@@ -1,16 +1,19 @@
-import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { RecognizeAssetDto } from './dto/recognize-asset.dto';
 import { VisionRecognitionService } from './vision-recognition.service';
 import {
   AssetRecognitionResult,
   ConditionAssessmentResult,
+  ListingAutofillDraft,
+  ListingPriceSuggestion,
   ValuationResult,
 } from '@dx-aiot/shared';
 import {
@@ -22,6 +25,8 @@ import { ValuationRequestDto } from './dto/valuation.dto';
 import { MarketValuationService } from './market-valuation.service';
 import { ConditionAssessmentDto } from './dto/condition-assessment.dto';
 import { ConditionAssessmentService } from './condition-assessment.service';
+import { ListingPriceSuggestDto } from './dto/listing-price-suggest.dto';
+import { ListingSuggestionService } from './listing-suggestion.service';
 
 @ApiTags('ai')
 @ApiBearerAuth('access-token')
@@ -32,6 +37,7 @@ export class AiController {
     private readonly barcodeLookupService: BarcodeLookupService,
     private readonly marketValuationService: MarketValuationService,
     private readonly conditionAssessmentService: ConditionAssessmentService,
+    private readonly listingSuggestionService: ListingSuggestionService,
   ) {}
 
   @Post('recognize')
@@ -88,5 +94,37 @@ export class AiController {
     @Body() dto: ConditionAssessmentDto,
   ): Promise<ConditionAssessmentResult> {
     return this.conditionAssessmentService.assess(dto);
+  }
+
+  @Post('listing-price-suggest')
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @ApiOperation({
+    summary: 'Suggest a listing price for an asset',
+    description:
+      'Values the asset with the market valuation engine (DXS-62) and applies a ' +
+      'confidence-scaled seller premium. Returns a suggested price, market value, ' +
+      'and negotiation range in VND. Results are cached in Redis for 24h keyed by itemId+condition.',
+  })
+  @ApiResponse({ status: 201, description: 'Suggested listing price with range, confidence, and rationale.' })
+  @ApiResponse({ status: 400, description: 'Invalid input.' })
+  @ApiResponse({ status: 404, description: 'Item not found.' })
+  async listingPriceSuggest(@Body() dto: ListingPriceSuggestDto): Promise<ListingPriceSuggestion> {
+    const referenceYear = new Date().getFullYear();
+    return this.listingSuggestionService.suggestPrice(dto, referenceYear);
+  }
+
+  @Get('listing-autofill/:itemId')
+  @ApiOperation({
+    summary: 'Pre-fill a listing draft from asset data',
+    description:
+      'Returns a non-persisted listing draft (title, category, condition, description, photos, ' +
+      'location) built from the stored asset. The description is a brief, factual skeleton — ' +
+      'no invented specifications. The frontend uses it to pre-fill the create-listing form.',
+  })
+  @ApiParam({ name: 'itemId', format: 'uuid', description: 'ID of the asset to draft a listing for.' })
+  @ApiResponse({ status: 200, description: 'Pre-populated listing draft.' })
+  @ApiResponse({ status: 404, description: 'Item not found.' })
+  async listingAutofill(@Param('itemId') itemId: string): Promise<ListingAutofillDraft> {
+    return this.listingSuggestionService.autofill(itemId);
   }
 }
