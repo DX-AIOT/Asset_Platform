@@ -59,6 +59,10 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       OPENAI_LOCAL_MODE: ${OPENAI_LOCAL_MODE:-true}
       OPENAI_OCR_MODEL: ${OPENAI_OCR_MODEL:-gpt-4.1-mini}
+      MOMO_PARTNER_CODE: ${MOMO_PARTNER_CODE:-MOMOBKUN20180529}
+      MOMO_ACCESS_KEY: ${MOMO_ACCESS_KEY:-klm05TvNBzhg7h7j}
+      MOMO_SECRET_KEY: ${MOMO_SECRET_KEY:-at67qH6mk8w5Y1nAyMoTwMDMKWqE3sa7}
+      MOMO_ENDPOINT: ${MOMO_ENDPOINT:-https://test-payment.momo.vn/v2/gateway/api/create}
     ports:
       - '3002:3001'
     depends_on:
