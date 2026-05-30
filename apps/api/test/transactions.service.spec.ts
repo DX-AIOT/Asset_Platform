@@ -313,3 +313,105 @@ describe('TransactionsService.confirmReceipt', () => {
     );
   });
 });
+
+// ── raiseDispute ──────────────────────────────────────────────────────────────
+
+describe('TransactionsService.raiseDispute', () => {
+  it('transitions ESCROW_HELD → DISPUTED and creates a DisputeRecord', async () => {
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD });
+    const { service, txRepo, disputeRepo } = makeService({ txs: [tx] });
+
+    const result = await service.raiseDispute('tx-1', 'buyer-1', 'item not as described');
+
+    expect(result.status).toBe(TransactionStatus.DISPUTED);
+    expect(txRepo.save).toHaveBeenCalled();
+    expect(disputeRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ transactionId: 'tx-1', raisedByUserId: 'buyer-1' }),
+    );
+    expect(disputeRepo.save).toHaveBeenCalled();
+  });
+
+  it('throws ForbiddenException when non-buyer calls dispute', async () => {
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD });
+    const { service } = makeService({ txs: [tx] });
+
+    await expect(service.raiseDispute('tx-1', 'seller-1', 'reason')).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('throws NotFoundException when transaction does not exist', async () => {
+    const { service } = makeService({ txs: [] });
+    await expect(service.raiseDispute('no-such', 'buyer-1', 'reason')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('throws UnprocessableEntityException on non-ESCROW_HELD transaction', async () => {
+    const tx = makeTx({ status: TransactionStatus.PENDING_PAYMENT });
+    const { service } = makeService({ txs: [tx] });
+
+    await expect(service.raiseDispute('tx-1', 'buyer-1', 'reason')).rejects.toThrow(
+      UnprocessableEntityException,
+    );
+  });
+
+  it('throws UnprocessableEntityException when a DisputeRecord already exists', async () => {
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD });
+    const { service, disputeRepo } = makeService({ txs: [tx] });
+    disputeRepo.findOne.mockResolvedValue({ id: 'existing-dispute' });
+
+    await expect(service.raiseDispute('tx-1', 'buyer-1', 'reason')).rejects.toThrow(
+      UnprocessableEntityException,
+    );
+  });
+});
+
+// ── releaseExpiredEscrows ─────────────────────────────────────────────────────
+
+describe('TransactionsService.releaseExpiredEscrows', () => {
+  it('transitions ESCROW_HELD → RELEASED_TO_SELLER for expired transactions', async () => {
+    const past = new Date(Date.now() - 1000);
+    const tx = makeTx({ status: TransactionStatus.ESCROW_HELD, releaseAfter: past });
+    const { service, txRepo } = makeService({ txs: [tx] });
+    txRepo.find.mockResolvedValue([tx]);
+
+    await service.releaseExpiredEscrows();
+
+    expect(tx.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
+    expect(tx.releasedAt).toBeInstanceOf(Date);
+    expect(txRepo.save).toHaveBeenCalledWith(tx);
+  });
+
+  it('does NOT touch DISPUTED transactions (query filters by ESCROW_HELD)', async () => {
+    const { service, txRepo } = makeService({ txs: [] });
+    txRepo.find.mockResolvedValue([]);
+
+    await service.releaseExpiredEscrows();
+
+    expect(txRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when no escrows have expired', async () => {
+    const { service, txRepo } = makeService({ txs: [] });
+    txRepo.find.mockResolvedValue([]);
+
+    await service.releaseExpiredEscrows();
+
+    expect(txRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('processes multiple expired transactions', async () => {
+    const past = new Date(Date.now() - 1000);
+    const tx1 = makeTx({ id: 'tx-1', status: TransactionStatus.ESCROW_HELD, releaseAfter: past });
+    const tx2 = makeTx({ id: 'tx-2', status: TransactionStatus.ESCROW_HELD, releaseAfter: past });
+    const { service, txRepo } = makeService({ txs: [tx1, tx2] });
+    txRepo.find.mockResolvedValue([tx1, tx2]);
+
+    await service.releaseExpiredEscrows();
+
+    expect(txRepo.save).toHaveBeenCalledTimes(2);
+    expect(tx1.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
+    expect(tx2.status).toBe(TransactionStatus.RELEASED_TO_SELLER);
+  });
+});

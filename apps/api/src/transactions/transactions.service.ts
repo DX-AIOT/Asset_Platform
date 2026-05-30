@@ -210,10 +210,12 @@ export class TransactionsService {
     });
 
     for (const tx of expired) {
-      tx.status = TransactionStatus.RELEASED_TO_SELLER;
+      this.transition(tx, TransactionStatus.RELEASED_TO_SELLER);
       tx.releasedAt = new Date();
       await this.txRepo.save(tx);
-      this.logger.log(`Auto-release ESCROW_HELD→RELEASED_TO_SELLER txId=${tx.id}`);
+      this.logger.log(
+        `Auto-release ESCROW_HELD→RELEASED_TO_SELLER txId=${tx.id} amountVND=${tx.amountVND}`,
+      );
     }
   }
 }
