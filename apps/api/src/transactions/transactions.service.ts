@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { Transaction, TransactionStatus, TRANSACTION_FSM } from './entities/transaction.entity';
 import { DisputeRecord, DisputeStatus } from './entities/dispute-record.entity';
 import { Listing, ListingStatus } from '../marketplace/entities/listing.entity';
+import { AdminTransactionDto, AdminTransactionsResponseDto } from './dto/admin-transaction.dto';
 import {
   IPaymentGateway,
   PAYMENT_GATEWAY,
@@ -381,9 +382,42 @@ export class TransactionsService {
 
   // ── Admin ────────────────────────────────────────────────────────────────────
 
-  async listAdminTransactions(status?: TransactionStatus): Promise<Transaction[]> {
+  async listAdminTransactions(status?: TransactionStatus): Promise<AdminTransactionsResponseDto> {
     const where = status ? { status } : {};
-    return this.txRepo.find({ where, order: { updatedAt: 'DESC' } });
+    const txs = await this.txRepo.find({
+      where,
+      order: { updatedAt: 'DESC' },
+      relations: ['listing', 'buyer', 'seller'],
+    });
+
+    const txIds = txs.map((t) => t.id);
+    const disputes = txIds.length
+      ? await this.disputeRepo.find({
+          where: { transactionId: In(txIds) },
+          order: { createdAt: 'ASC' },
+        })
+      : [];
+
+    const disputeByTx = new Map<string, DisputeRecord>();
+    for (const d of disputes) {
+      if (!disputeByTx.has(d.transactionId)) disputeByTx.set(d.transactionId, d);
+    }
+
+    const USD_RATE = 25_000;
+    const transactions: AdminTransactionDto[] = txs.map((tx) => ({
+      id: tx.id,
+      transactionId: tx.id,
+      listingTitle: (tx.listing as Listing | null)?.title ?? '(deleted)',
+      buyerEmail: tx.buyer?.email ?? tx.buyerId,
+      sellerEmail: tx.seller?.email ?? tx.sellerId,
+      amount: parseFloat((Number(tx.amountVND) / USD_RATE).toFixed(2)),
+      disputedAt: disputeByTx.get(tx.id)?.createdAt?.toISOString() ?? null,
+      status: tx.status,
+      createdAt: tx.createdAt.toISOString(),
+      updatedAt: tx.updatedAt.toISOString(),
+    }));
+
+    return { transactions, total: transactions.length };
   }
 
   async adminRetryRelease(id: string): Promise<Transaction> {
