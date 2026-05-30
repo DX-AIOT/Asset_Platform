@@ -16,6 +16,7 @@ import { RemindersModule } from './reminders/reminders.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { PaymentGatewayModule } from './payments/payment-gateway.module';
+import { StorageModule } from './storage/storage.module';
 import { DatabaseSeedService } from './database/database-seed.service';
 import { User } from './users/entities/user.entity';
 import { Item } from './items/entities/item.entity';
@@ -63,6 +64,7 @@ import { AppService } from './app.service';
     MarketplaceModule,
     TransactionsModule,
     PaymentGatewayModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [

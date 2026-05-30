@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -11,9 +12,15 @@ import {
   Post,
   Query,
   StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import {
+  ApiBody,
+  ApiConsumes,
   ApiTags,
   ApiOperation,
   ApiResponse,
@@ -24,6 +31,7 @@ import {
 } from '@nestjs/swagger';
 import { ItemsService } from './items.service';
 import { PriceHistoryService } from '../ai/price-history.service';
+import { StorageService } from '../storage/storage.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItemCategory } from './entities/item.entity';
@@ -36,6 +44,11 @@ import {
   PortfolioValueResponseDto,
   PriceHistoryResponseDto,
 } from './dto';
+import * as crypto from 'crypto';
+import * as path from 'path';
+
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 @ApiTags('items')
 @ApiBearerAuth('access-token')
@@ -46,7 +59,50 @@ export class ItemsController {
   constructor(
     private readonly itemsService: ItemsService,
     private readonly priceHistoryService: PriceHistoryService,
+    private readonly storageService: StorageService,
   ) {}
+
+  @Post('photos/upload')
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_FILE_BYTES },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+      required: ['file'],
+    },
+  })
+  @ApiOperation({
+    summary: 'Upload a photo and get back a storable URL',
+    description:
+      'Accepts a single image file (JPEG, PNG, WebP, GIF; max 10 MB). ' +
+      'In local mode the file is saved to disk; in production it is uploaded to S3 via CloudFront. ' +
+      'Include the returned URL in the `photos` array when creating or updating an asset.',
+  })
+  @ApiResponse({ status: 201, description: 'Upload successful.', schema: { example: { url: 'https://cdn.example.com/items/uuid.jpg' } } })
+  @ApiResponse({ status: 400, description: 'No file provided or unsupported type.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  async uploadPhoto(
+    @CurrentUser() user: any,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<{ url: string }> {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException(`Unsupported file type: ${file.mimetype}`);
+    }
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const key = `items/${user.id}/${crypto.randomUUID()}${ext}`;
+    const url = await this.storageService.uploadFile(file.buffer, key, file.mimetype);
+    return { url };
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

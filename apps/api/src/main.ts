@@ -1,13 +1,23 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser = require('cookie-parser');
+import * as path from 'path';
+import * as fs from 'fs';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.use(cookieParser());
+
+  // Serve locally-stored uploads when S3 is not configured
+  if (!process.env.AWS_BUCKET || process.env.S3_LOCAL_MODE === 'true') {
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
+  }
 
   app.enableCors({
     origin:
